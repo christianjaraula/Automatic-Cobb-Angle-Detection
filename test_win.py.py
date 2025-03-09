@@ -66,8 +66,8 @@ def get_kprcnn_model(path):
 
 def initialize_models():
     global model, bbox_model, vertebra_boxes, vertebra_confidences
-    detector_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model1.pt"
     bbox_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model2.pt"
+    detector_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model1.pt"
     model = get_kprcnn_model(detector_path)
     bbox_model = YOLO(bbox_path)
 
@@ -402,13 +402,12 @@ def keypoints_to_landmark_xy(
 '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''GUI FOR COBB ANGLE CALCULATION'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
 # Initialize CustomTkinter
-ctk.set_appearance_mode("dark")  # Options: "System", "Dark", "Light"
-ctk.set_default_color_theme("blue")  # Options: "blue", "green", "dark-blue"
-
+ctk.set_appearance_mode("light")  # Options: "System", "Dark", "Light"
+ctk.set_default_color_theme("black-white.json")  
 def update_detect_button_state():
     global img
     if img is not None:
-        detect_vertebrae_button.configure(state="normal", fg_color=("#3B82F6", "#1F6AA5"))
+        detect_vertebrae_button.configure(state="normal", fg_color=("#000000", "#1F6AA5"))
     else:
         detect_vertebrae_button.configure(state="disabled", fg_color=("gray75", "gray45"))
         
@@ -424,7 +423,7 @@ def open_file():
     if camera_active:
         camera_active = False
         cap.release()
-        camera_button.configure(text="Camera", fg_color=("#3B82F6", "#1F6AA5"))
+        camera_button.configure(text="Camera", fg_color=("#000000", "#1F6AA5"))
         # Hide the capture button when switching from camera to image
         if 'capture_button' in globals() and hasattr(capture_button, 'place_forget'):
             capture_button.place_forget()
@@ -453,7 +452,7 @@ def open_file():
         image_label.image = ctk_image  # Keep a reference to prevent garbage collection
 
         # Disable Cobb angle button until keypoints are detected
-        detect_vertebrae_button.configure(state="normal", fg_color=("#3B82F6", "#1F6AA5"))
+        detect_vertebrae_button.configure(state="normal", fg_color=("#000000", "#1F6AA5"))
         cobb_angle_button.configure(state="disabled", fg_color=("gray75", "gray45"))
         keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
 
@@ -523,26 +522,24 @@ def update_image_size(event=None):
         image_label.image = ctk_image
 
 
-
 def create_camera_buttons():
     global capture_button
     try:
         camera_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-aperture-48.png"
         pil_image = Image.open(camera_icon_path)
-        camera_icon = CTkImage(light_image=pil_image, size=(30, 30))
+        camera_icon_ctk = CTkImage(light_image=pil_image, dark_image=pil_image, size=(32, 32))
         
         capture_button = ctk.CTkButton(
             image_label,
             text="",  
-            image=camera_icon,
+            image=camera_icon_ctk,
             command=capture_frame,
             width=30,
             height=30,
-            corner_radius=5,
-            fg_color="#1F6AA5",  
+            corner_radius=5, 
             border_width=0,
         )
-        capture_button.camera_icon = camera_icon
+        capture_button.camera_icon_ctk = camera_icon_ctk
         
     except Exception as e:
         print(f"Error loading camera icon: {e}")
@@ -563,16 +560,16 @@ def toggle_camera():
             camera_active = True
             
             no_camera_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-no-camera-48.png"
-            no_camera_icon = tk.PhotoImage(file=no_camera_path)
-            no_camera_icon = no_camera_icon.subsample(2, 2)  # Adjust size as needed
+            no_camera_pil = Image.open(no_camera_path)
+            no_camera_icon_ctk = CTkImage(light_image=no_camera_pil, dark_image=no_camera_pil, size=(24, 24))
             
             camera_button.configure(
                 text="Stop", 
                 fg_color="#FF3B30",
-                image=no_camera_icon,
+                image=no_camera_icon_ctk,
                 compound="left"
             )
-            camera_button.icon = no_camera_icon
+            camera_button.image = no_camera_icon_ctk  # Keep a reference
             
             if 'save_cobb_button' in globals() and save_cobb_button is not None:
                 save_cobb_button.destroy()
@@ -595,8 +592,8 @@ def toggle_camera():
         
         camera_button.configure(
             text="Camera", 
-            fg_color=("#3B82F6", "#1F6AA5"),
-            image=camera_icon 
+            fg_color=("#000000", "#1F6AA5"),
+            image=camera_icon_ctk  
         )
         
         if 'capture_button' in globals() and hasattr(capture_button, 'place_forget'):
@@ -664,7 +661,7 @@ def update_camera_feed():
             
             camera_active = False
             cap.release()
-            camera_button.configure(text="Camera", fg_color=("#3B82F6", "#1F6AA5"))
+            camera_button.configure(text="Camera", fg_color=("#000000", "#1F6AA5"))
             detect_vertebrae_button.configure(state="disabled", fg_color=("gray75", "gray45"))
 
             if 'capture_button' in globals() and hasattr(capture_button, 'place_forget'):
@@ -675,7 +672,7 @@ def update_camera_feed():
         # Camera was deactivated elsewhere
         if 'cap' in globals() and cap is not None and cap.isOpened():
             cap.release()
-        camera_button.configure(text="Camera", fg_color=("#3B82F6", "#1F6AA5"))
+        camera_button.configure(text="Camera", fg_color=("#000000", "#1F6AA5"))
 
 
 def capture_frame():
@@ -713,7 +710,7 @@ def capture_frame():
         # Stop the camera after capturing the frame
         camera_active = False
         cap.release()
-        camera_button.configure(text="Camera", fg_color=("#3B82F6", "#1F6AA5"))
+        camera_button.configure(text="Camera", fg_color=("#000000", "#1F6AA5"))
         
         # Hide the capture button
         if 'capture_button' in globals() and hasattr(capture_button, 'place_forget'):
@@ -729,16 +726,46 @@ def detect_vertebrae():
         return
 
     try:
-        processing_window = ctk.CTkToplevel()
-        processing_window.title("Processing")
-        processing_window.geometry("300x100")
-        processing_label = ctk.CTkLabel(
-            processing_window, text="Detecting vertebrae..."
+        # Create processing window
+        progress_window = ctk.CTkToplevel()
+        progress_window.title("progress")
+        progress_window.geometry("300x150")
+        progress_window.grab_set()  
+        progress_window.configure(fg_color="#1A1A1A")  
+        
+        progress_label = ctk.CTkLabel(
+            progress_window, 
+            text="Detecting vertebrae...",
+            text_color="white"
         )
-        processing_label.pack(pady=20)
-        processing_window.update()
+        progress_label.pack(pady=(20, 10))
+        
+        
+        progress = ctk.CTkProgressBar(
+            progress_window, 
+            mode="indeterminate",
+            progress_color="white",
+            fg_color="#333333"  
+        )
+        progress.pack(pady=10, padx=20, fill="x")
+        progress.start()  
+        # Add status label with light gray text
+        status_label = ctk.CTkLabel(
+            progress_window, 
+            text="Running bounding box model...",
+            text_color="#CCCCCC"  
+        )
+        status_label.pack(pady=(5, 20))
+        
+        # Update the window to make sure it appears before progress
+        progress_window.update()
 
+        # Get detection method
         method = detection_var.get()
+
+        # Update status
+        status_label.configure(text="Running detection model...")
+        progress_window.update()
 
         if method == "YOLO":
             img_rgb = (
@@ -760,9 +787,39 @@ def detect_vertebrae():
                 output["boxes"][high_scores_idxs].detach().cpu().numpy()
             )
             vertebra_confidences = scores[high_scores_idxs]
+        
+        # Update status
+        status_label.configure(text="progress detection results...")
+        progress_window.update()
+        
+
         # Draw bounding boxes with optional labels and confidence scores
         img_with_boxes = img.copy()
+                # 
+        status_label.configure(text="Finalizing...")
+        progress_window.update()
+        
+        # Update display with your existing code
+        img_display = Image.fromarray(img_with_boxes)
+        display_width = (
+            main_frame.winfo_width() - side_panel.winfo_width() - 40
+        )
+        display_height = main_frame.winfo_height() - 40
 
+        image_label.original_image = img_display
+        resized_image = resize_image_for_display(
+            img_display, display_width, display_height
+        )
+        ctk_image = CTkImage(light_image=resized_image, size=(display_width, display_height))
+        image_label.configure(image=ctk_image)
+        image_label.image = ctk_image
+        keypoints_button.configure(
+            state="normal", fg_color=("#3a7ebf")
+        )
+        
+        # Close the progress window
+        progress_window.destroy()
+        
         # Font settings
         font = cv.FONT_HERSHEY_SIMPLEX
         font_scale = 0.8
@@ -774,7 +831,7 @@ def detect_vertebrae():
             x1, y1, x2, y2 = map(int, box[:4])
 
             overlay = img_with_boxes.copy()
-            alpha = 0.2  # Transparency factor
+            alpha = 0.2  
 
             # Draw filled rectangle with transparency
             cv.rectangle(
@@ -787,7 +844,7 @@ def detect_vertebrae():
             # Horizontal lines (top and bottom)
             dash_length = 10
             gap_length = 5
-            color = (30, 144, 255)  # Dodger blue, good for medical imaging
+            color = (30, 144, 255)  
             thickness = 2
 
             # Draw dashed lines for top and bottom borders
@@ -937,7 +994,7 @@ def detect_vertebrae():
                     font_thickness,
                 )
 
-        processing_window.destroy()
+        progress_window.destroy()
 
         # Update display
         img_display = Image.fromarray(img_with_boxes)
@@ -954,12 +1011,12 @@ def detect_vertebrae():
         image_label.configure(image=ctk_image)
         image_label.image = ctk_image
         keypoints_button.configure(
-            state="normal", fg_color=("#3a7ebf", "#1F6AA5")
+            state="normal", fg_color=("#000000", "#1F6AA5")
         )
     except Exception as e:
         messagebox.showerror("Error", f"Failed to detect vertebrae: {str(e)}")
-        if "processing_window" in locals():
-            processing_window.destroy()
+        if "progress_window" in locals():
+            progress_window.destroy()
 
 
 def show_keypoints():
@@ -979,23 +1036,58 @@ def show_keypoints():
             )
             return
 
-        # Create progress window
+        # Create enhanced progress window
         progress_window = ctk.CTkToplevel()
         progress_window.title("Processing")
-        progress_window.geometry("300x100")
+        progress_window.geometry("300x150")
+        progress_window.configure(fg_color="#1A1A1A")
+        progress_window.grab_set()  # Make window modal
+        
+        # Add processing label
         progress_label = ctk.CTkLabel(
             progress_window, text="Detecting keypoints..."
         )
-        progress_label.pack(pady=20)
+        progress_label = ctk.CTkLabel(
+            progress_window, 
+            text="Detecting keypoints...",
+            text_color="white"
+        )
+        progress_label.pack(pady=(20, 10))
+        
+        # Add progress bar
+        progress = ctk.CTkProgressBar(
+            progress_window, 
+            mode="indeterminate",
+            progress_color="white",
+            fg_color="#333333"  # Dark gray background
+        )
+        progress.pack(pady=10, padx=20, fill="x")
+        progress.start()
+        
+        # Add status label for updates
+        status_label = ctk.CTkLabel(
+            progress_window, 
+            text="Running keypoint model...",
+            text_color="#CCCCCC"  # Light gray
+        )
+        status_label.pack(pady=(5, 20))
+        
+        # Update the window to make sure it appears before processing
         progress_window.update()
 
         # Run keypoint detection on full image
+        status_label.configure(text="Processing image through model...")
+        progress_window.update()
+        
         img_tensor = F.to_tensor(img)
         with torch.no_grad():
             output = model([img_tensor])[0]
 
         kpts, _, _ = filter_output(output)
 
+        # Update status
+        status_label.configure(text="Filtering and visualizing keypoints...")
+        progress_window.update()
         # Create a clean copy of the image for visualization
         img_with_detections = img.copy()
         filtered_keypoints = []
@@ -1096,7 +1188,7 @@ def show_keypoints():
             image_label.configure(image=ctk_image)
             image_label.image = ctk_image
             cobb_angle_button.configure(
-                state="normal", fg_color=("#3a7ebf", "#1F6AA5")
+                state="normal", fg_color=("#000000", "#1F6AA5")
             )
 
         else:
@@ -1428,9 +1520,9 @@ def add_save_button():
         save_cobb_button = None
 
     if not camera_active and img_with_cobb is not None:
-        save_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-png-48.png"
+        save_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\save.png"
         pil_image = Image.open(save_icon_path)
-        save_icon = CTkImage(light_image=pil_image, size=(30, 30))
+        save_icon = CTkImage(light_image=pil_image, size=(32, 32))
 
         # Create button with the icon
         save_cobb_button = ctk.CTkButton(
@@ -1495,38 +1587,38 @@ def on_closing():
         cap.release()
     root.destroy()
 
-box_size = min(button_width//1 - 1, 110)  # Calculate a square size that fits well
+box_size = min(button_width//1 - 1, 110)  
 
 # Create a frame for the top row (Main and Secondary)
 top_row_frame = ctk.CTkFrame(
     side_panel, 
     fg_color="transparent"
 )
-top_row_frame.pack(side="top", fill="x", pady=(10, 10), padx=20)
+top_row_frame.pack(side="top", fill="x", pady=(20, 10), padx=20)
 
-# Main curve frame (top left) - replacing the text box with a frame
+# Main curve frame (top left) 
 main_curve_frame = ctk.CTkFrame(
     top_row_frame,
     width=box_size,
     height=box_size,
     corner_radius=10,
-    fg_color=("#f0f0f0", "#2c2c2c"),
-    border_width=1,
-    border_color=("gray70", "gray30"),
+    fg_color=("#F3F3F7", "#2c2c2c"),
+    border_color=("#D1D1D9", "#2c2c2c"),
+    border_width=2,
 )
 main_curve_frame.pack(side="left", padx=(0, 10))
-main_curve_frame.pack_propagate(False)  # Prevent the frame from shrinking
+main_curve_frame.pack_propagate(False)  
 
 # Add the icon to the main curve frame
-main_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-inclination-50.png"
+main_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\angle-90.png"
 main_icon_image = Image.open(main_icon_path)
-main_icon_ctk = CTkImage(light_image=main_icon_image, dark_image=main_icon_image, size=(32, 32))
+main_icon_ctk = CTkImage(light_image=main_icon_image, dark_image=main_icon_image, size=(24, 24))
 main_icon_label = ctk.CTkLabel(
     main_curve_frame,
     image=main_icon_ctk,
     text="",
 )
-main_icon_label.pack(pady=(15, 0))  # Reduced top padding to make room for subtitle
+main_icon_label.pack(pady=(20, 0))  
 
 # Add the result text below the icon
 main_result_label = ctk.CTkLabel(
@@ -1544,7 +1636,7 @@ main_subtitle_label = ctk.CTkLabel(
     font=("Arial", 10),
     text_color=("gray50", "gray70"),
 )
-main_subtitle_label.pack(pady=(0, 0))
+main_subtitle_label.pack(pady=(0, 2))
 
 # Secondary curve frame (top right) - replacing the text box with a frame
 secondary_curve_frame = ctk.CTkFrame(
@@ -1552,15 +1644,15 @@ secondary_curve_frame = ctk.CTkFrame(
     width=box_size,
     height=box_size,
     corner_radius=10,
-    fg_color=("#f0f0f0", "#2c2c2c"),
-    border_width=1,
-    border_color=("gray70", "gray30"),
+    fg_color=("#F3F3F7", "#2c2c2c"),
+    border_color=("#D1D1D9", "#2c2c2c"),
+    border_width=2,
 )
 secondary_curve_frame.pack(side="right", padx=(10, 0))
-secondary_curve_frame.pack_propagate(False)  # Prevent the frame from shrinking
+secondary_curve_frame.pack_propagate(False)  
 
 # Add the icon to the secondary curve frame
-secondary_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-inclination-48.png"
+secondary_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\angle.png"
 secondary_icon_image = Image.open(secondary_icon_path)
 secondary_icon_ctk = CTkImage(light_image=secondary_icon_image, dark_image=secondary_icon_image, size=(24, 24))
 secondary_icon_label = ctk.CTkLabel(
@@ -1568,7 +1660,7 @@ secondary_icon_label = ctk.CTkLabel(
     image=secondary_icon_ctk,
     text="",
 )
-secondary_icon_label.pack(pady=(20, 0))  # Same padding as main icon
+secondary_icon_label.pack(pady=(20, 0))  
 
 # Add the result text below the icon
 secondary_result_label = ctk.CTkLabel(
@@ -1585,7 +1677,7 @@ secondary_subtitle_label = ctk.CTkLabel(
     font=("Arial", 10),
     text_color=("gray50", "gray70"),
 )
-secondary_subtitle_label.pack(pady=(0, 0))
+secondary_subtitle_label.pack(pady=(0, 3))
 
 # Create a frame for the bottom row (Curve Type and Severity)
 bottom_row_frame = ctk.CTkFrame(
@@ -1594,29 +1686,29 @@ bottom_row_frame = ctk.CTkFrame(
 )
 bottom_row_frame.pack(side="top", fill="x", pady=(5, 10), padx=20)
 
-# Curve type frame (bottom left) - replacing the text box with a frame
+# Curve type frame (bottom left) 
 curve_type_frame = ctk.CTkFrame(
     bottom_row_frame,
     width=box_size,
     height=box_size,
     corner_radius=10,
-    fg_color=("#f0f0f0", "#2c2c2c"),
-    border_width=1,
-    border_color=("gray70", "gray30"),
+    fg_color=("#F3F3F7", "#2c2c2c"),
+    border_color=("#D1D1D9", "#2c2c2c"),
+    border_width=2,
 )
 curve_type_frame.pack(side="left", padx=(0, 10))
-curve_type_frame.pack_propagate(False)  # Prevent the frame from shrinking
+curve_type_frame.pack_propagate(False)  
 
 # Add the icon to the curve type frame
-curve_type_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-middle-back-48.png"
+curve_type_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\scoliosis.png"
 curve_type_icon_image = Image.open(curve_type_icon_path)
-curve_type_icon_ctk = CTkImage(light_image=curve_type_icon_image, dark_image=curve_type_icon_image, size=(32, 32))
+curve_type_icon_ctk = CTkImage(light_image=curve_type_icon_image, dark_image=curve_type_icon_image, size=(24, 24))
 curve_type_icon_label = ctk.CTkLabel(
     curve_type_frame,
     image=curve_type_icon_ctk,
     text="",
 )
-curve_type_icon_label.pack(pady=(20, 0))  # Same padding as other icons
+curve_type_icon_label.pack(pady=(20, 0))  
 
 # Add the result text below the icon
 curve_type_result_label = ctk.CTkLabel(
@@ -1633,31 +1725,31 @@ curve_subtitle_label = ctk.CTkLabel(
     font=("Arial", 10),
     text_color=("gray50", "gray70"),
 )
-curve_subtitle_label.pack(pady=(0, 0))
+curve_subtitle_label.pack(pady=(0, 3))
 
-# Severity frame (bottom right) - replacing the text box with a frame
+# Severity frame (bottom right) 
 severity_frame = ctk.CTkFrame(
     bottom_row_frame,
     width=box_size,
     height=box_size,
     corner_radius=10,
-    fg_color=("#f0f0f0", "#2c2c2c"),
-    border_width=1,
-    border_color=("gray70", "gray30"),
+    fg_color=("#F3F3F7", "#2c2c2c"),
+    border_color=("#D1D1D9", "#2c2c2c"),
+    border_width=2,
 )
 severity_frame.pack(side="right", padx=(10, 0))
-severity_frame.pack_propagate(False)  # Prevent the frame from shrinking
+severity_frame.pack_propagate(False)  
 
 # Add the icon to the severity frame
-severity_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-back-pain-48.png"
+severity_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\rating.png"
 severity_icon_image = Image.open(severity_icon_path)
-severity_icon_ctk = CTkImage(light_image=severity_icon_image, dark_image=severity_icon_image, size=(32, 32))
+severity_icon_ctk = CTkImage(light_image=severity_icon_image, dark_image=severity_icon_image, size=(24, 24))
 severity_icon_label = ctk.CTkLabel(
     severity_frame,
     image=severity_icon_ctk,
     text="",
 )
-severity_icon_label.pack(pady=(20, 0))  # Same padding as other icons
+severity_icon_label.pack(pady=(20, 0))  
 
 # Add the result text below the icon
 severity_result_label = ctk.CTkLabel(
@@ -1674,16 +1766,16 @@ severity_subtitle_label = ctk.CTkLabel(
     font=("Arial", 10),
     text_color=("gray50", "gray70"),
 )
-severity_subtitle_label.pack(pady=(0, 0))
+severity_subtitle_label.pack(pady=(0, 3))
 
 #Process buttons
-measure_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-measure-30.png"
-measure_icon = tk.PhotoImage(file=measure_path)
-measure_icon = measure_icon.subsample(2, 2)
+measure_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\ruler.png"
+measure_icon_image = Image.open(measure_path)
+measure_icon_ctk = CTkImage(light_image=measure_icon_image, dark_image=measure_icon_image, size=(24, 24))
 cobb_angle_button = ctk.CTkButton(
     side_panel,
     text="Measure",
-    image=measure_icon,
+    image=measure_icon_ctk,
     compound="left",
     command=apply_cobb_angle,
     corner_radius=10,
@@ -1692,14 +1784,14 @@ cobb_angle_button = ctk.CTkButton(
     fg_color=("gray75", "gray45"),  
     height=40
 )
-cobb_angle_button.pack(side="bottom", pady=(10, 20), padx=20)
+cobb_angle_button.pack(side="bottom", pady=(5, 20), padx=20)
 
-target_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-pain-point-50.png"
-target_icon = tk.PhotoImage(file=target_path)
-target_icon = target_icon.subsample(2, 2)
+target_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\points.png"
+target_icon_image = Image.open(target_path)
+target_icon_ctk = CTkImage(light_image=target_icon_image, dark_image=target_icon_image, size=(24, 24))
 keypoints_button = ctk.CTkButton(
     side_panel,
-    image=target_icon,
+    image=target_icon_ctk,
     compound="left",
     text="Show",
     command=show_keypoints,
@@ -1707,39 +1799,39 @@ keypoints_button = ctk.CTkButton(
     state="disabled", 
     fg_color=("gray75", "gray45"),  
     width=button_width,
-    anchor="center",  # Center the content
+    anchor="center",  
     height=40
 )
-keypoints_button.pack(side="bottom", pady=(10, 5), padx=20)
+keypoints_button.pack(side="bottom", pady=(5, 5), padx=20)
 
-bone_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-spine-50.png"
-bone_icon = tk.PhotoImage(file=bone_path)
-bone_icon = bone_icon.subsample(2, 2)
+bone_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\bounding-box.png"
+bone_icon_image = Image.open(bone_path)
+bone_icon_ctk = CTkImage(light_image=bone_icon_image, dark_image=bone_icon_image, size=(24, 24))
 detect_vertebrae_button = ctk.CTkButton(
     side_panel,
     text="Detect",
-    image=bone_icon,
+    image=bone_icon_ctk,
     compound="left",
     command=detect_vertebrae,
-    state="disabled",  # Start with button disabled
+    state="disabled",  
     fg_color=("gray75", "gray45"),
     corner_radius=10,
     width=button_width,
     height=40
 )
-detect_vertebrae_button.pack(side="bottom", pady=(10, 5), padx=20)
+detect_vertebrae_button.pack(side="bottom", pady=(5, 5), padx=20)
 
 #camera and image buttons
 button_frame = ctk.CTkFrame(side_panel, fg_color="transparent") 
-button_frame.pack(side="bottom", pady=(10, 5), padx=20)
+button_frame.pack(side="bottom", pady=(5, 5), padx=20)
 
-camera_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-camera-48.png"
-camera_icon = tk.PhotoImage(file=camera_path)
-camera_icon = camera_icon.subsample(2, 2)
+camera_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\camera.png"
+camera_icon_image = Image.open(camera_path)
+camera_icon_ctk = CTkImage(light_image=camera_icon_image, dark_image=camera_icon_image, size=(24, 24))
 camera_button = ctk.CTkButton(
     button_frame,
     text="Camera",
-    image=camera_icon,
+    image=camera_icon_ctk,
     compound="left",
     command=toggle_camera,
     corner_radius=10,
@@ -1748,15 +1840,15 @@ camera_button = ctk.CTkButton(
     anchor="center"
 )
 camera_button.pack(side="left", padx=(0, 10))  
-camera_button.image = camera_icon  
+camera_button.image = camera_icon_ctk 
 
-image_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-image-64.png"
-image_icon = tk.PhotoImage(file=image_path)
-image_icon = image_icon.subsample(2, 2)
+image_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\picture.png"
+image_icon_image = Image.open(image_path)
+image_icon_ctk = CTkImage(light_image=image_icon_image, dark_image=image_icon_image, size=(24, 24))
 open_button = ctk.CTkButton(
     button_frame,
     text="Image",
-    image=image_icon,
+    image=image_icon_ctk,
     compound="left",
     command=open_file,
     corner_radius=10,
@@ -1765,7 +1857,7 @@ open_button = ctk.CTkButton(
     anchor="center"
 )
 open_button.pack(side="left")
-open_button.image = image_icon  
+open_button.image = image_icon_ctk
 
 # Create radio buttons for detection method
 detection_var = tk.StringVar(value="Model1") 
@@ -1803,26 +1895,26 @@ display_options_label = ctk.CTkLabel(
 display_options_label.pack(side="top", pady=(1, 5), padx=20)
 
 # Create BooleanVar for checkboxes
-show_labels = tk.BooleanVar(value=True)
-show_confidence = tk.BooleanVar(value=True)
+show_labels = ctk.BooleanVar(value=False)
+show_confidence = ctk.BooleanVar(value=False)
 
-labels_checkbox = ctk.CTkCheckBox(
+labels_switch = ctk.CTkSwitch(
     side_panel,
     text="Show Labels",
     variable=show_labels,
     width=button_width // 1,
     command=lambda: detect_vertebrae() if vertebra_boxes is not None else None,
 )
-labels_checkbox.pack(side="top", pady=5, padx=20)
+labels_switch.pack(side="top", pady=5, padx=20)
 
-confidence_checkbox = ctk.CTkCheckBox(
+confidence_switch = ctk.CTkSwitch(
     side_panel,
     text="Show Confidence",
     variable=show_confidence,
     width=button_width // 1,
     command=lambda: detect_vertebrae() if vertebra_boxes is not None else None,
 )
-confidence_checkbox.pack(side="top", pady=5, padx=20)
+confidence_switch.pack(side="top", pady=5, padx=20)
 
 spacer_bottom = ctk.CTkLabel(side_panel, text="", height=50)
 spacer_bottom.pack(side="bottom")
