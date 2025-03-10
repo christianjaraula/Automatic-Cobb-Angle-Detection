@@ -66,8 +66,8 @@ def get_kprcnn_model(path):
 
 def initialize_models():
     global model, bbox_model, vertebra_boxes, vertebra_confidences
-    bbox_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model2.pt"
-    detector_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model1.pt"
+    bbox_path = "/home/raspi/Desktop/models/model2.pt"
+    detector_path = "/home/raspi/Desktop/models/model1.pt"
     model = get_kprcnn_model(detector_path)
     bbox_model = YOLO(bbox_path)
 
@@ -531,7 +531,7 @@ def update_image_size(event=None):
 def create_camera_buttons():
     global capture_button
     try:
-        camera_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-aperture-48.png"
+        camera_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/icons8-aperture-48.png"
         pil_image = Image.open(camera_icon_path)
         camera_icon_ctk = CTkImage(light_image=pil_image, dark_image=pil_image, size=(32, 32))
         
@@ -572,7 +572,7 @@ def toggle_camera():
             
             camera_active = True
             
-            no_camera_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-no-camera-48.png"
+            no_camera_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/icons8-no-camera-48.png"
             no_camera_pil = Image.open(no_camera_path)
             no_camera_icon_ctk = CTkImage(light_image=no_camera_pil, dark_image=no_camera_pil, size=(24, 24))
             
@@ -752,46 +752,23 @@ def detect_vertebrae():
         return
 
     try:
-        # Create processing window
-        progress_window = ctk.CTkToplevel()
-        progress_window.title("progress")
-        progress_window.geometry("300x150")
-        progress_window.grab_set()  
-        progress_window.configure(fg_color="#1A1A1A")  
-        
-        progress_label = ctk.CTkLabel(
-            progress_window, 
-            text="Detecting vertebrae...",
-            text_color="white"
-        )
-        progress_label.pack(pady=(20, 10))
-        
-        
-        progress = ctk.CTkProgressBar(
-            progress_window, 
-            mode="indeterminate",
-            progress_color="white",
-            fg_color="#333333"  
-        )
-        progress.pack(pady=10, padx=20, fill="x")
-        progress.start()  
-        # Add status label with light gray text
+        # Create a simple status label in the main window instead of a new progress window
         status_label = ctk.CTkLabel(
-            progress_window, 
-            text="Running bounding box model...",
-            text_color="#CCCCCC"  
+            main_frame,
+            text="Detecting vertebrae...",
+            text_color="white",
+            bg_color="#1A1A1A"
         )
-        status_label.pack(pady=(5, 20))
-        
-        # Update the window to make sure it appears before progress
-        progress_window.update()
+        # Use grid instead of pack since the parent is using grid
+        status_label.grid(row=0, column=0, pady=10, sticky="ew")
+        main_frame.update()  # Force update to show the label
 
         # Get detection method
         method = detection_var.get()
 
-        # Update status
+        # Update status with minimal UI updates
         status_label.configure(text="Running detection model...")
-        progress_window.update()
+        main_frame.update()
 
         if method == "YOLO":
             img_rgb = (
@@ -814,37 +791,12 @@ def detect_vertebrae():
             )
             vertebra_confidences = scores[high_scores_idxs]
         
-        # Update status
-        status_label.configure(text="progress detection results...")
-        progress_window.update()
-        
+        # Update status with minimal UI updates
+        status_label.configure(text="Processing detection results...")
+        main_frame.update()
 
         # Draw bounding boxes with optional labels and confidence scores
         img_with_boxes = img.copy()
-                # 
-        status_label.configure(text="Finalizing...")
-        progress_window.update()
-        
-        # Update display with your existing code
-        img_display = Image.fromarray(img_with_boxes)
-        display_width = (
-            main_frame.winfo_width() - side_panel.winfo_width() - 40
-        )
-        display_height = main_frame.winfo_height() - 40
-
-        image_label.original_image = img_display
-        resized_image = resize_image_for_display(
-            img_display, display_width, display_height
-        )
-        ctk_image = CTkImage(light_image=resized_image, size=(display_width, display_height))
-        image_label.configure(image=ctk_image)
-        image_label.image = ctk_image
-        keypoints_button.configure(
-            state="normal", fg_color=("#3a7ebf")
-        )
-        
-        # Close the progress window
-        progress_window.destroy()
         
         # Font settings
         font = cv.FONT_HERSHEY_SIMPLEX
@@ -1020,7 +972,9 @@ def detect_vertebrae():
                     font_thickness,
                 )
 
-        progress_window.destroy()
+        # Clean up the status label before updating the display
+        status_label.grid_forget()  # Use grid_forget instead of destroy for grid-managed widgets
+        main_frame.update()
 
         # Update display
         img_display = Image.fromarray(img_with_boxes)
@@ -1037,12 +991,15 @@ def detect_vertebrae():
         image_label.configure(image=ctk_image)
         image_label.image = ctk_image
         keypoints_button.configure(
-            state="normal", fg_color=("#000000", "#1F6AA5")
+            state="normal", fg_color=("#000000")
         )
+        
     except Exception as e:
+        # Clean up UI even if there's an error
+        if 'status_label' in locals() and status_label.winfo_exists():
+            status_label.grid_forget()  # Use grid_forget instead of destroy
+            main_frame.update()
         messagebox.showerror("Error", f"Failed to detect vertebrae: {str(e)}")
-        if "progress_window" in locals():
-            progress_window.destroy()
 
 
 def show_keypoints():
@@ -1062,49 +1019,22 @@ def show_keypoints():
             )
             return
 
-        # Create enhanced progress window
-        progress_window = ctk.CTkToplevel()
-        progress_window.title("Processing")
-        progress_window.geometry("300x150")
-        progress_window.configure(fg_color="#1A1A1A")
-        progress_window.grab_set()  # Make window modal
-        
-        # Add processing label
-        progress_label = ctk.CTkLabel(
-            progress_window, text="Detecting keypoints..."
-        )
-        progress_label = ctk.CTkLabel(
-            progress_window, 
-            text="Detecting keypoints...",
-            text_color="white"
-        )
-        progress_label.pack(pady=(20, 10))
-        
-        # Add progress bar
-        progress = ctk.CTkProgressBar(
-            progress_window, 
-            mode="indeterminate",
-            progress_color="white",
-            fg_color="#333333"  # Dark gray background
-        )
-        progress.pack(pady=10, padx=20, fill="x")
-        progress.start()
-        
-        # Add status label for updates
+        # Create a simple status label in the main window instead of a new progress window
         status_label = ctk.CTkLabel(
-            progress_window, 
-            text="Running keypoint model...",
-            text_color="#CCCCCC"  # Light gray
+            main_frame,
+            text="Detecting keypoints...",
+            text_color="white",
+            bg_color="#1A1A1A"
         )
-        status_label.pack(pady=(5, 20))
-        
-        # Update the window to make sure it appears before processing
-        progress_window.update()
+        # Use grid instead of pack since the parent is using grid
+        status_label.grid(row=0, column=0, pady=10, sticky="ew")
+        main_frame.update()  # Force update to show the label
+
+        # Update status with minimal UI updates
+        status_label.configure(text="Running keypoint model...")
+        main_frame.update()
 
         # Run keypoint detection on full image
-        status_label.configure(text="Processing image through model...")
-        progress_window.update()
-        
         img_tensor = F.to_tensor(img)
         with torch.no_grad():
             output = model([img_tensor])[0]
@@ -1113,7 +1043,7 @@ def show_keypoints():
 
         # Update status
         status_label.configure(text="Filtering and visualizing keypoints...")
-        progress_window.update()
+        main_frame.update()
         # Create a clean copy of the image for visualization
         img_with_detections = img.copy()
         filtered_keypoints = []
@@ -1193,7 +1123,9 @@ def show_keypoints():
                             cv.LINE_AA,
                         )
 
-        progress_window.destroy()
+        # Clean up the status label before updating the display
+        status_label.grid_forget()
+        main_frame.update()
 
         # Update global keypoints
         if filtered_keypoints:
@@ -1214,7 +1146,7 @@ def show_keypoints():
             image_label.configure(image=ctk_image)
             image_label.image = ctk_image
             cobb_angle_button.configure(
-                state="normal", fg_color=("#000000", "#1F6AA5")
+                state="normal", fg_color=("#000000")
             )
 
         else:
@@ -1224,9 +1156,11 @@ def show_keypoints():
             )
 
     except Exception as e:
-        if "progress_window" in locals():
-            progress_window.destroy()
+        if 'status_label' in locals() and status_label.winfo_exists():
+            status_label.grid_forget()
+            main_frame.update()
         messagebox.showerror("Error", f"An error occurred: {str(e)}")
+
 
 def apply_cobb_angle():
     try:
@@ -1546,7 +1480,7 @@ def add_save_button():
         save_cobb_button = None
 
     if not camera_active and img_with_cobb is not None:
-        save_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\save.png"
+        save_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/save.png"
         pil_image = Image.open(save_icon_path)
         save_icon = CTkImage(light_image=pil_image, size=(32, 32))
 
@@ -1636,7 +1570,7 @@ main_curve_frame.pack(side="left", padx=(0, 10))
 main_curve_frame.pack_propagate(False)  
 
 # Add the icon to the main curve frame
-main_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\angle-90.png"
+main_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/angle-90.png"
 main_icon_image = Image.open(main_icon_path)
 main_icon_ctk = CTkImage(light_image=main_icon_image, dark_image=main_icon_image, size=(24, 24))
 main_icon_label = ctk.CTkLabel(
@@ -1678,7 +1612,7 @@ secondary_curve_frame.pack(side="right", padx=(10, 0))
 secondary_curve_frame.pack_propagate(False)  
 
 # Add the icon to the secondary curve frame
-secondary_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\angle.png"
+secondary_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/angle.png"
 secondary_icon_image = Image.open(secondary_icon_path)
 secondary_icon_ctk = CTkImage(light_image=secondary_icon_image, dark_image=secondary_icon_image, size=(24, 24))
 secondary_icon_label = ctk.CTkLabel(
@@ -1726,7 +1660,7 @@ curve_type_frame.pack(side="left", padx=(0, 10))
 curve_type_frame.pack_propagate(False)  
 
 # Add the icon to the curve type frame
-curve_type_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\scoliosis.png"
+curve_type_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/scoliosis.png"
 curve_type_icon_image = Image.open(curve_type_icon_path)
 curve_type_icon_ctk = CTkImage(light_image=curve_type_icon_image, dark_image=curve_type_icon_image, size=(24, 24))
 curve_type_icon_label = ctk.CTkLabel(
@@ -1767,7 +1701,7 @@ severity_frame.pack(side="right", padx=(10, 0))
 severity_frame.pack_propagate(False)  
 
 # Add the icon to the severity frame
-severity_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\rating.png"
+severity_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/rating.png"
 severity_icon_image = Image.open(severity_icon_path)
 severity_icon_ctk = CTkImage(light_image=severity_icon_image, dark_image=severity_icon_image, size=(24, 24))
 severity_icon_label = ctk.CTkLabel(
@@ -1795,7 +1729,7 @@ severity_subtitle_label = ctk.CTkLabel(
 severity_subtitle_label.pack(pady=(0, 3))
 
 #Process buttons
-measure_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\ruler.png"
+measure_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/ruler.png"
 measure_icon_image = Image.open(measure_path)
 measure_icon_ctk = CTkImage(light_image=measure_icon_image, dark_image=measure_icon_image, size=(24, 24))
 cobb_angle_button = ctk.CTkButton(
@@ -1812,7 +1746,7 @@ cobb_angle_button = ctk.CTkButton(
 )
 cobb_angle_button.pack(side="bottom", pady=(5, 20), padx=20)
 
-target_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\points.png"
+target_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/points.png"
 target_icon_image = Image.open(target_path)
 target_icon_ctk = CTkImage(light_image=target_icon_image, dark_image=target_icon_image, size=(24, 24))
 keypoints_button = ctk.CTkButton(
@@ -1830,7 +1764,7 @@ keypoints_button = ctk.CTkButton(
 )
 keypoints_button.pack(side="bottom", pady=(5, 5), padx=20)
 
-bone_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\bounding-box.png"
+bone_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/bounding-box.png"
 bone_icon_image = Image.open(bone_path)
 bone_icon_ctk = CTkImage(light_image=bone_icon_image, dark_image=bone_icon_image, size=(24, 24))
 detect_vertebrae_button = ctk.CTkButton(
@@ -1851,7 +1785,7 @@ detect_vertebrae_button.pack(side="bottom", pady=(5, 5), padx=20)
 button_frame = ctk.CTkFrame(side_panel, fg_color="transparent") 
 button_frame.pack(side="bottom", pady=(5, 5), padx=20)
 
-camera_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\camera.png"
+camera_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/camera.png"
 camera_icon_image = Image.open(camera_path)
 camera_icon_ctk = CTkImage(light_image=camera_icon_image, dark_image=camera_icon_image, size=(24, 24))
 camera_button = ctk.CTkButton(
@@ -1868,7 +1802,7 @@ camera_button = ctk.CTkButton(
 camera_button.pack(side="left", padx=(0, 10))  
 camera_button.image = camera_icon_ctk 
 
-image_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\picture.png"
+image_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/picture.png"
 image_icon_image = Image.open(image_path)
 image_icon_ctk = CTkImage(light_image=image_icon_image, dark_image=image_icon_image, size=(24, 24))
 open_button = ctk.CTkButton(
