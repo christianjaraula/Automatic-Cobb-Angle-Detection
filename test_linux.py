@@ -14,7 +14,6 @@ from typing import List, Tuple, Dict, NamedTuple
 from customtkinter import CTkImage
 import io
 import time
-import picamera
 from io import BytesIO
 
 # Initialize variables
@@ -698,103 +697,32 @@ def update_camera_feed():
 def capture_frame():
     global cap, camera_active, img, img_tensor
     
-    # First stop the camera preview to release it for high-res capture
-    if camera_active and cap is not None and cap.isOpened():
-        camera_active = False
-        cap.release()
+    # Capture frame
+    if cap is not None and cap.isOpened():
+        # Set high resolution for capture
+        cap.set(cv.CAP_PROP_FRAME_WIDTH, 2592)  # Max resolution for Raspberry Pi Camera v2
+        cap.set(cv.CAP_PROP_FRAME_HEIGHT, 1944)
         
-        try:
-            
-            # Create a new high-resolution capture with picamera
-            with picamera.PiCamera() as camera:
-                # Set camera resolution to desired high resolution
-                camera.resolution = (1440, 1724)  # High-res photo mode
-                camera.framerate = 15
-                
-                # Allow camera to warm up
-                time.sleep(2)
-                
-                # Capture high-resolution image
-                stream = BytesIO()
-                camera.capture(stream, format='jpeg')
-                stream.seek(0)
-                
-                # Convert the captured image to a numpy array
-                high_res_image = Image.open(stream)
-                img = np.array(high_res_image.convert('RGB'))
-                
-                # Convert to tensor using PyTorch directly
-                img_tensor = torch.from_numpy(img.transpose(2, 0, 1)).float() / 255.0
-                
-                # Display the captured frame as the new image
-                img_display = Image.fromarray(img)
-                display_width = main_frame.winfo_width() - side_panel.winfo_width() - 40
-                display_height = main_frame.winfo_height() - 40
-                
-                # Store as original image for resizing during window changes
-                image_label.original_image = img_display
-                
-                # Use BILINEAR resizing which is faster on Raspberry Pi
-                resized_image = resize_image_for_display(
-                    img_display, display_width, display_height
-                )
-                ctk_image = CTkImage(light_image=resized_image, size=(display_width, display_height))
-                image_label.configure(image=ctk_image)
-                image_label.image = ctk_image
-                
-                # Enable the detect button since we now have an image
-                detect_vertebrae_button.configure(state="normal", fg_color=("#000000"))
-                
-                # Update button state
-                camera_button.configure(text="Camera", fg_color=("#000000"))
-                
-                # Disable cobb angle and keypoints initially
-                cobb_angle_button.configure(state="disabled", fg_color=("gray75", "gray45"))
-                keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
-                
-                # Hide the capture button
-                if 'capture_button' in globals() and hasattr(capture_button, 'place_forget'):
-                    capture_button.place_forget()
-                
-                # Update button state when camera stops
-                update_detect_button_state()
-                
-        except ImportError:
-            # If picamera is not available, fall back to OpenCV
-            fallback_high_res_capture()
-        except Exception as e:
-            messagebox.showerror("Error", f"High-resolution capture error: {str(e)}")
-            # Fall back to OpenCV capture
-            fallback_high_res_capture()
-
-def fallback_high_res_capture():
-    global cap, camera_active, img, img_tensor
-    
-    # Reinitialize the camera with high resolution
-    try:
-        cap = cv.VideoCapture(0)
-        if not cap.isOpened():
-            messagebox.showerror("Error", "Could not re-open camera for high-res capture")
-            return
+        # Wait a moment for the camera to adjust to new resolution
+        time.sleep(0.2)
         
-        # Set to high resolution
-        cap.set(cv.CAP_PROP_FRAME_WIDTH, 1440)
-        cap.set(cv.CAP_PROP_FRAME_HEIGHT, 1724)
-        
-        # Give the camera time to adjust
-        time.sleep(1)
-        
-        # Capture a single high-res frame
         ret, frame = cap.read()
         if ret:
             frame = cv.flip(frame, 1)
             frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
             img = frame
             
-            # Convert to tensor
+            # Convert to tensor using PyTorch directly
             img_tensor = torch.from_numpy(frame.transpose(2, 0, 1)).float() / 255.0
+
+            # Update button state when camera stops
+            update_detect_button_state()
+        
+            # Disable the cobb angle button initially
+            cobb_angle_button.configure(state="disabled", fg_color=("gray75", "gray45"))
+            keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
             
-            # Display the captured frame
+            # Display the captured frame as the new image
             img_display = Image.fromarray(img)
             display_width = main_frame.winfo_width() - side_panel.winfo_width() - 40
             display_height = main_frame.winfo_height() - 40
@@ -802,6 +730,7 @@ def fallback_high_res_capture():
             # Store as original image for resizing during window changes
             image_label.original_image = img_display
             
+            # Use BILINEAR resizing which is faster on Raspberry Pi
             resized_image = resize_image_for_display(
                 img_display, display_width, display_height
             )
@@ -809,80 +738,20 @@ def fallback_high_res_capture():
             image_label.configure(image=ctk_image)
             image_label.image = ctk_image
             
-            # Enable the detect button
+            # Enable the detect button since we now have an image
             detect_vertebrae_button.configure(state="normal", fg_color=("#000000"))
             
-            # Disable cobb angle and keypoints initially
-            cobb_angle_button.configure(state="disabled", fg_color=("gray75", "gray45"))
-            keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
-        
-        # Close the camera
-        cap.release()
-        camera_active = False
-        camera_button.configure(text="Camera", fg_color=("#000000"))
-        
-        # Hide the capture button
-        if 'capture_button' in globals() and hasattr(capture_button, 'place_forget'):
-            capture_button.place_forget()
-        
-        # Update button state
-        update_detect_button_state()
-        
-    except Exception as e:
-        messagebox.showerror("Error", f"Fallback capture error: {str(e)}")
-        
-    finally:
-        # Ensure the camera is released
-        if 'cap' in globals() and cap is not None and cap.isOpened():
+            # Stop the camera after capturing the frame
+            camera_active = False
             cap.release()
-# def capture_frame():
-#     global cap, camera_active, img, img_tensor
-    
-#     # Capture frame
-#     if cap is not None and cap.isOpened():
-#         ret, frame = cap.read()
-#         if ret:
-#             frame = cv.flip(frame, 1)
-#             frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-#             img = frame
-            
-#             # Convert to tensor using PyTorch directly (better for Raspberry Pi than torchvision F.to_tensor)
-#             img_tensor = torch.from_numpy(frame.transpose(2, 0, 1)).float() / 255.0
-
-#             # Update button state when camera stops
-#             update_detect_button_state()
+            camera_button.configure(text="Camera", fg_color=("#000000"))
         
-#             # Disable the cobb angle button initially
-#             cobb_angle_button.configure(state="disabled", fg_color=("gray75", "gray45"))
-#             keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
-            
-#             # Display the captured frame as the new image
-#             img_display = Image.fromarray(img)
-#             display_width = main_frame.winfo_width() - side_panel.winfo_width() - 40
-#             display_height = main_frame.winfo_height() - 40
-            
-#             # Store as original image for resizing during window changes
-#             image_label.original_image = img_display
-            
-#             # Use BILINEAR resizing which is faster on Raspberry Pi
-#             resized_image = resize_image_for_display(
-#                 img_display, display_width, display_height
-#             )
-#             ctk_image = CTkImage(light_image=resized_image, size=(display_width, display_height))
-#             image_label.configure(image=ctk_image)
-#             image_label.image = ctk_image
-            
-#             # Enable the detect button since we now have an image
-#             detect_vertebrae_button.configure(state="normal", fg_color=("#000000"))
-            
-#             # Stop the camera after capturing the frame
-#             camera_active = False
-#             cap.release()
-#             camera_button.configure(text="Camera", fg_color=("#000000"))
-        
-#             # Hide the capture button
-#             if 'capture_button' in globals() and hasattr(capture_button, 'place_forget'):
-#                 capture_button.place_forget()
+            # Hide the capture button
+            if 'capture_button' in globals() and hasattr(capture_button, 'place_forget'):
+                capture_button.place_forget()
+        else:
+            # Capture failed
+            messagebox.showerror("Error", "Failed to capture high-resolution image")
 
 
 def detect_vertebrae():
