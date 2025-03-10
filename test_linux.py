@@ -13,6 +13,9 @@ from ultralytics import YOLO
 from typing import List, Tuple, Dict, NamedTuple
 from customtkinter import CTkImage
 import io
+import time
+import picamera
+from io import BytesIO
 
 # Initialize variables
 camera_active = False
@@ -66,8 +69,8 @@ def get_kprcnn_model(path):
 
 def initialize_models():
     global model, bbox_model, vertebra_boxes, vertebra_confidences
-    bbox_path = "/home/raspi/Desktop/models/model2.pt"
-    detector_path = "/home/raspi/Desktop/models/model1.pt"
+    bbox_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model2.pt"
+    detector_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model1.pt"
     model = get_kprcnn_model(detector_path)
     bbox_model = YOLO(bbox_path)
 
@@ -408,7 +411,7 @@ ctk.set_default_color_theme("black-white.json")
 def update_detect_button_state():
     global img
     if img is not None:
-        detect_vertebrae_button.configure(state="normal", fg_color=("#000000", "#1F6AA5"))
+        detect_vertebrae_button.configure(state="normal", fg_color=("#000000"))
     else:
         detect_vertebrae_button.configure(state="disabled", fg_color=("gray75", "gray45"))
         
@@ -429,7 +432,7 @@ def open_file():
     if camera_active:
         camera_active = False
         cap.release()
-        camera_button.configure(text="Camera", fg_color=("#000000", "#1F6AA5"))
+        camera_button.configure(text="Camera", fg_color=("#000000"))
         # Hide the capture button when switching from camera to image
         if 'capture_button' in globals() and hasattr(capture_button, 'place_forget'):
             capture_button.place_forget()
@@ -458,7 +461,7 @@ def open_file():
         image_label.image = ctk_image  # Keep a reference to prevent garbage collection
 
         # Disable Cobb angle button until keypoints are detected
-        detect_vertebrae_button.configure(state="normal", fg_color=("#000000", "#1F6AA5"))
+        detect_vertebrae_button.configure(state="normal", fg_color=("#000000"))
         cobb_angle_button.configure(state="disabled", fg_color=("gray75", "gray45"))
         keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
 
@@ -531,7 +534,7 @@ def update_image_size(event=None):
 def create_camera_buttons():
     global capture_button
     try:
-        camera_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/icons8-aperture-48.png"
+        camera_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-aperture-48.png"
         pil_image = Image.open(camera_icon_path)
         camera_icon_ctk = CTkImage(light_image=pil_image, dark_image=pil_image, size=(32, 32))
         
@@ -572,7 +575,7 @@ def toggle_camera():
             
             camera_active = True
             
-            no_camera_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/icons8-no-camera-48.png"
+            no_camera_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-no-camera-48.png"
             no_camera_pil = Image.open(no_camera_path)
             no_camera_icon_ctk = CTkImage(light_image=no_camera_pil, dark_image=no_camera_pil, size=(24, 24))
             
@@ -605,7 +608,7 @@ def toggle_camera():
         
         camera_button.configure(
             text="Camera", 
-            fg_color=("#000000", "#1F6AA5"),
+            fg_color=("#000000"),
             image=camera_icon_ctk  
         )
         
@@ -679,7 +682,7 @@ def update_camera_feed():
             
             camera_active = False
             cap.release()
-            camera_button.configure(text="Camera", fg_color=("#000000", "#1F6AA5"))
+            camera_button.configure(text="Camera", fg_color=("#000000"))
             detect_vertebrae_button.configure(state="disabled", fg_color=("gray75", "gray45"))
 
             if 'capture_button' in globals() and hasattr(capture_button, 'place_forget'):
@@ -690,31 +693,108 @@ def update_camera_feed():
         # Camera was deactivated elsewhere
         if 'cap' in globals() and cap is not None and cap.isOpened():
             cap.release()
-        camera_button.configure(text="Camera", fg_color=("#000000", "#1F6AA5"))
-
+        camera_button.configure(text="Camera", fg_color=("#000000"))
 
 def capture_frame():
     global cap, camera_active, img, img_tensor
     
-    # Capture frame
-    if cap is not None and cap.isOpened():
+    # First stop the camera preview to release it for high-res capture
+    if camera_active and cap is not None and cap.isOpened():
+        camera_active = False
+        cap.release()
+        
+        try:
+            
+            # Create a new high-resolution capture with picamera
+            with picamera.PiCamera() as camera:
+                # Set camera resolution to desired high resolution
+                camera.resolution = (1440, 1724)  # High-res photo mode
+                camera.framerate = 15
+                
+                # Allow camera to warm up
+                time.sleep(2)
+                
+                # Capture high-resolution image
+                stream = BytesIO()
+                camera.capture(stream, format='jpeg')
+                stream.seek(0)
+                
+                # Convert the captured image to a numpy array
+                high_res_image = Image.open(stream)
+                img = np.array(high_res_image.convert('RGB'))
+                
+                # Convert to tensor using PyTorch directly
+                img_tensor = torch.from_numpy(img.transpose(2, 0, 1)).float() / 255.0
+                
+                # Display the captured frame as the new image
+                img_display = Image.fromarray(img)
+                display_width = main_frame.winfo_width() - side_panel.winfo_width() - 40
+                display_height = main_frame.winfo_height() - 40
+                
+                # Store as original image for resizing during window changes
+                image_label.original_image = img_display
+                
+                # Use BILINEAR resizing which is faster on Raspberry Pi
+                resized_image = resize_image_for_display(
+                    img_display, display_width, display_height
+                )
+                ctk_image = CTkImage(light_image=resized_image, size=(display_width, display_height))
+                image_label.configure(image=ctk_image)
+                image_label.image = ctk_image
+                
+                # Enable the detect button since we now have an image
+                detect_vertebrae_button.configure(state="normal", fg_color=("#000000"))
+                
+                # Update button state
+                camera_button.configure(text="Camera", fg_color=("#000000"))
+                
+                # Disable cobb angle and keypoints initially
+                cobb_angle_button.configure(state="disabled", fg_color=("gray75", "gray45"))
+                keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
+                
+                # Hide the capture button
+                if 'capture_button' in globals() and hasattr(capture_button, 'place_forget'):
+                    capture_button.place_forget()
+                
+                # Update button state when camera stops
+                update_detect_button_state()
+                
+        except ImportError:
+            # If picamera is not available, fall back to OpenCV
+            fallback_high_res_capture()
+        except Exception as e:
+            messagebox.showerror("Error", f"High-resolution capture error: {str(e)}")
+            # Fall back to OpenCV capture
+            fallback_high_res_capture()
+
+def fallback_high_res_capture():
+    global cap, camera_active, img, img_tensor
+    
+    # Reinitialize the camera with high resolution
+    try:
+        cap = cv.VideoCapture(0)
+        if not cap.isOpened():
+            messagebox.showerror("Error", "Could not re-open camera for high-res capture")
+            return
+        
+        # Set to high resolution
+        cap.set(cv.CAP_PROP_FRAME_WIDTH, 1440)
+        cap.set(cv.CAP_PROP_FRAME_HEIGHT, 1724)
+        
+        # Give the camera time to adjust
+        time.sleep(1)
+        
+        # Capture a single high-res frame
         ret, frame = cap.read()
         if ret:
             frame = cv.flip(frame, 1)
             frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
             img = frame
             
-            # Convert to tensor using PyTorch directly (better for Raspberry Pi than torchvision F.to_tensor)
+            # Convert to tensor
             img_tensor = torch.from_numpy(frame.transpose(2, 0, 1)).float() / 255.0
-
-            # Update button state when camera stops
-            update_detect_button_state()
-        
-            # Disable the cobb angle button initially
-            cobb_angle_button.configure(state="disabled", fg_color=("gray75", "gray45"))
-            keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
             
-            # Display the captured frame as the new image
+            # Display the captured frame
             img_display = Image.fromarray(img)
             display_width = main_frame.winfo_width() - side_panel.winfo_width() - 40
             display_height = main_frame.winfo_height() - 40
@@ -722,7 +802,6 @@ def capture_frame():
             # Store as original image for resizing during window changes
             image_label.original_image = img_display
             
-            # Use BILINEAR resizing which is faster on Raspberry Pi
             resized_image = resize_image_for_display(
                 img_display, display_width, display_height
             )
@@ -730,17 +809,80 @@ def capture_frame():
             image_label.configure(image=ctk_image)
             image_label.image = ctk_image
             
-            # Enable the detect button since we now have an image
-            detect_vertebrae_button.configure(state="normal", fg_color=("#000000", "#1F6AA5"))
+            # Enable the detect button
+            detect_vertebrae_button.configure(state="normal", fg_color=("#000000"))
             
-            # Stop the camera after capturing the frame
-            camera_active = False
-            cap.release()
-            camera_button.configure(text="Camera", fg_color=("#000000", "#1F6AA5"))
+            # Disable cobb angle and keypoints initially
+            cobb_angle_button.configure(state="disabled", fg_color=("gray75", "gray45"))
+            keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
         
-            # Hide the capture button
-            if 'capture_button' in globals() and hasattr(capture_button, 'place_forget'):
-                capture_button.place_forget()
+        # Close the camera
+        cap.release()
+        camera_active = False
+        camera_button.configure(text="Camera", fg_color=("#000000"))
+        
+        # Hide the capture button
+        if 'capture_button' in globals() and hasattr(capture_button, 'place_forget'):
+            capture_button.place_forget()
+        
+        # Update button state
+        update_detect_button_state()
+        
+    except Exception as e:
+        messagebox.showerror("Error", f"Fallback capture error: {str(e)}")
+        
+    finally:
+        # Ensure the camera is released
+        if 'cap' in globals() and cap is not None and cap.isOpened():
+            cap.release()
+# def capture_frame():
+#     global cap, camera_active, img, img_tensor
+    
+#     # Capture frame
+#     if cap is not None and cap.isOpened():
+#         ret, frame = cap.read()
+#         if ret:
+#             frame = cv.flip(frame, 1)
+#             frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+#             img = frame
+            
+#             # Convert to tensor using PyTorch directly (better for Raspberry Pi than torchvision F.to_tensor)
+#             img_tensor = torch.from_numpy(frame.transpose(2, 0, 1)).float() / 255.0
+
+#             # Update button state when camera stops
+#             update_detect_button_state()
+        
+#             # Disable the cobb angle button initially
+#             cobb_angle_button.configure(state="disabled", fg_color=("gray75", "gray45"))
+#             keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
+            
+#             # Display the captured frame as the new image
+#             img_display = Image.fromarray(img)
+#             display_width = main_frame.winfo_width() - side_panel.winfo_width() - 40
+#             display_height = main_frame.winfo_height() - 40
+            
+#             # Store as original image for resizing during window changes
+#             image_label.original_image = img_display
+            
+#             # Use BILINEAR resizing which is faster on Raspberry Pi
+#             resized_image = resize_image_for_display(
+#                 img_display, display_width, display_height
+#             )
+#             ctk_image = CTkImage(light_image=resized_image, size=(display_width, display_height))
+#             image_label.configure(image=ctk_image)
+#             image_label.image = ctk_image
+            
+#             # Enable the detect button since we now have an image
+#             detect_vertebrae_button.configure(state="normal", fg_color=("#000000"))
+            
+#             # Stop the camera after capturing the frame
+#             camera_active = False
+#             cap.release()
+#             camera_button.configure(text="Camera", fg_color=("#000000"))
+        
+#             # Hide the capture button
+#             if 'capture_button' in globals() and hasattr(capture_button, 'place_forget'):
+#                 capture_button.place_forget()
 
 
 def detect_vertebrae():
@@ -752,15 +894,24 @@ def detect_vertebrae():
         return
 
     try:
-        # Create a simple status label in the main window instead of a new progress window
+        # Create a status label positioned over the image instead of in the main frame
+        status_frame = ctk.CTkFrame(
+            image_label,
+            corner_radius=8,
+            fg_color="#1A1A1A"
+        )
+        # Position the frame in the center of the image
+        status_frame.place(relx=0.5, rely=0.5, anchor="center")
+        
         status_label = ctk.CTkLabel(
-            main_frame,
+            status_frame,
             text="Detecting vertebrae...",
             text_color="white",
-            bg_color="#1A1A1A"
+            bg_color="#1A1A1A",
+            padx=20,
+            pady=10
         )
-        # Use grid instead of pack since the parent is using grid
-        status_label.grid(row=0, column=0, pady=10, sticky="ew")
+        status_label.pack()
         main_frame.update()  # Force update to show the label
 
         # Get detection method
@@ -973,7 +1124,7 @@ def detect_vertebrae():
                 )
 
         # Clean up the status label before updating the display
-        status_label.grid_forget()  # Use grid_forget instead of destroy for grid-managed widgets
+        status_frame.destroy()
         main_frame.update()
 
         # Update display
@@ -996,8 +1147,8 @@ def detect_vertebrae():
         
     except Exception as e:
         # Clean up UI even if there's an error
-        if 'status_label' in locals() and status_label.winfo_exists():
-            status_label.grid_forget()  # Use grid_forget instead of destroy
+        if 'status_frame' in locals() and status_frame.winfo_exists():
+            status_frame.destroy()
             main_frame.update()
         messagebox.showerror("Error", f"Failed to detect vertebrae: {str(e)}")
 
@@ -1019,15 +1170,24 @@ def show_keypoints():
             )
             return
 
-        # Create a simple status label in the main window instead of a new progress window
+        # Create a status frame positioned over the image
+        status_frame = ctk.CTkFrame(
+            image_label,
+            corner_radius=8,
+            fg_color="#1A1A1A"
+        )
+        # Position the frame in the center of the image
+        status_frame.place(relx=0.5, rely=0.5, anchor="center")
+        
         status_label = ctk.CTkLabel(
-            main_frame,
+            status_frame,
             text="Detecting keypoints...",
             text_color="white",
-            bg_color="#1A1A1A"
+            bg_color="#1A1A1A",
+            padx=20,
+            pady=10
         )
-        # Use grid instead of pack since the parent is using grid
-        status_label.grid(row=0, column=0, pady=10, sticky="ew")
+        status_label.pack()
         main_frame.update()  # Force update to show the label
 
         # Update status with minimal UI updates
@@ -1124,7 +1284,7 @@ def show_keypoints():
                         )
 
         # Clean up the status label before updating the display
-        status_label.grid_forget()
+        status_frame.destroy()
         main_frame.update()
 
         # Update global keypoints
@@ -1156,11 +1316,10 @@ def show_keypoints():
             )
 
     except Exception as e:
-        if 'status_label' in locals() and status_label.winfo_exists():
-            status_label.grid_forget()
+        if 'status_frame' in locals() and status_frame.winfo_exists():
+            status_frame.destroy()
             main_frame.update()
         messagebox.showerror("Error", f"An error occurred: {str(e)}")
-
 
 def apply_cobb_angle():
     try:
@@ -1480,7 +1639,7 @@ def add_save_button():
         save_cobb_button = None
 
     if not camera_active and img_with_cobb is not None:
-        save_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/save.png"
+        save_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\save.png"
         pil_image = Image.open(save_icon_path)
         save_icon = CTkImage(light_image=pil_image, size=(32, 32))
 
@@ -1570,7 +1729,7 @@ main_curve_frame.pack(side="left", padx=(0, 10))
 main_curve_frame.pack_propagate(False)  
 
 # Add the icon to the main curve frame
-main_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/angle-90.png"
+main_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\angle-90.png"
 main_icon_image = Image.open(main_icon_path)
 main_icon_ctk = CTkImage(light_image=main_icon_image, dark_image=main_icon_image, size=(24, 24))
 main_icon_label = ctk.CTkLabel(
@@ -1612,7 +1771,7 @@ secondary_curve_frame.pack(side="right", padx=(10, 0))
 secondary_curve_frame.pack_propagate(False)  
 
 # Add the icon to the secondary curve frame
-secondary_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/angle.png"
+secondary_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\angle.png"
 secondary_icon_image = Image.open(secondary_icon_path)
 secondary_icon_ctk = CTkImage(light_image=secondary_icon_image, dark_image=secondary_icon_image, size=(24, 24))
 secondary_icon_label = ctk.CTkLabel(
@@ -1660,7 +1819,7 @@ curve_type_frame.pack(side="left", padx=(0, 10))
 curve_type_frame.pack_propagate(False)  
 
 # Add the icon to the curve type frame
-curve_type_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/scoliosis.png"
+curve_type_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\scoliosis.png"
 curve_type_icon_image = Image.open(curve_type_icon_path)
 curve_type_icon_ctk = CTkImage(light_image=curve_type_icon_image, dark_image=curve_type_icon_image, size=(24, 24))
 curve_type_icon_label = ctk.CTkLabel(
@@ -1701,7 +1860,7 @@ severity_frame.pack(side="right", padx=(10, 0))
 severity_frame.pack_propagate(False)  
 
 # Add the icon to the severity frame
-severity_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/rating.png"
+severity_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\rating.png"
 severity_icon_image = Image.open(severity_icon_path)
 severity_icon_ctk = CTkImage(light_image=severity_icon_image, dark_image=severity_icon_image, size=(24, 24))
 severity_icon_label = ctk.CTkLabel(
@@ -1729,7 +1888,7 @@ severity_subtitle_label = ctk.CTkLabel(
 severity_subtitle_label.pack(pady=(0, 3))
 
 #Process buttons
-measure_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/ruler.png"
+measure_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\ruler.png"
 measure_icon_image = Image.open(measure_path)
 measure_icon_ctk = CTkImage(light_image=measure_icon_image, dark_image=measure_icon_image, size=(24, 24))
 cobb_angle_button = ctk.CTkButton(
@@ -1746,7 +1905,7 @@ cobb_angle_button = ctk.CTkButton(
 )
 cobb_angle_button.pack(side="bottom", pady=(5, 20), padx=20)
 
-target_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/points.png"
+target_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\points.png"
 target_icon_image = Image.open(target_path)
 target_icon_ctk = CTkImage(light_image=target_icon_image, dark_image=target_icon_image, size=(24, 24))
 keypoints_button = ctk.CTkButton(
@@ -1764,7 +1923,7 @@ keypoints_button = ctk.CTkButton(
 )
 keypoints_button.pack(side="bottom", pady=(5, 5), padx=20)
 
-bone_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/bounding-box.png"
+bone_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\bounding-box.png"
 bone_icon_image = Image.open(bone_path)
 bone_icon_ctk = CTkImage(light_image=bone_icon_image, dark_image=bone_icon_image, size=(24, 24))
 detect_vertebrae_button = ctk.CTkButton(
@@ -1785,7 +1944,7 @@ detect_vertebrae_button.pack(side="bottom", pady=(5, 5), padx=20)
 button_frame = ctk.CTkFrame(side_panel, fg_color="transparent") 
 button_frame.pack(side="bottom", pady=(5, 5), padx=20)
 
-camera_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/camera.png"
+camera_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\camera.png"
 camera_icon_image = Image.open(camera_path)
 camera_icon_ctk = CTkImage(light_image=camera_icon_image, dark_image=camera_icon_image, size=(24, 24))
 camera_button = ctk.CTkButton(
@@ -1802,7 +1961,7 @@ camera_button = ctk.CTkButton(
 camera_button.pack(side="left", padx=(0, 10))  
 camera_button.image = camera_icon_ctk 
 
-image_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/picture.png"
+image_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\picture.png"
 image_icon_image = Image.open(image_path)
 image_icon_ctk = CTkImage(light_image=image_icon_image, dark_image=image_icon_image, size=(24, 24))
 open_button = ctk.CTkButton(
