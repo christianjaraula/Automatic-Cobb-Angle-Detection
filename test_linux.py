@@ -435,6 +435,16 @@ def open_file():
             capture_button.place_forget()
 
     try:
+        # # Load the original image
+        # original_img, original_img_tensor = open_image_path(file_path)
+        
+        # # Convert to grayscale
+        # gray_img = cv.cvtColor(original_img, cv.COLOR_RGB2GRAY)
+        
+        # # Convert back to RGB format for display (but still grayscale)
+        # img = cv.cvtColor(gray_img, cv.COLOR_GRAY2RGB)
+        # img_tensor = F.to_tensor(img)
+
         img, img_tensor = open_image_path(file_path)
         
         # Reset model-related global variables
@@ -712,6 +722,12 @@ def capture_frame():
             # Convert BGR (OpenCV default) to RGB for proper colors
             frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
             img = frame 
+
+            # original_img = frame.copy()
+
+            # gray_img = cv.cvtColor(original_img, cv.COLOR_RGB2GRAY)
+            
+            # img = cv.cvtColor(gray_img, cv.COLOR_GRAY2RGB)
             
             # Convert to PyTorch tensor
             img_tensor = torch.from_numpy(frame.transpose(2, 0, 1)).float() / 255.0
