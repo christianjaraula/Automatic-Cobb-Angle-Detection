@@ -63,10 +63,17 @@ def get_kprcnn_model(path):
         return None
 
 
+# def initialize_models():
+#     global model, bbox_model, vertebra_boxes, vertebra_confidences
+#     bbox_path = "/home/raspi/Desktop/models/model2.pt"
+#     detector_path = "/home/raspi/Desktop/models/model1.pt"
+#     model = get_kprcnn_model(detector_path)
+#     bbox_model = YOLO(bbox_path)
+
 def initialize_models():
     global model, bbox_model, vertebra_boxes, vertebra_confidences
-    bbox_path = "/home/raspi/Desktop/models/model2.pt"
-    detector_path = "/home/raspi/Desktop/models/model1.pt"
+    bbox_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model2.pt"
+    detector_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model1.pt"
     model = get_kprcnn_model(detector_path)
     bbox_model = YOLO(bbox_path)
 
@@ -539,7 +546,7 @@ def update_image_size(event=None):
 def create_camera_buttons():
     global capture_button
     try:
-        camera_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/icons8-aperture-48.png"
+        camera_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-aperture-48.png"
         pil_image = Image.open(camera_icon_path)
         camera_icon_ctk = CTkImage(light_image=pil_image, dark_image=pil_image, size=(32, 32))
         
@@ -582,9 +589,15 @@ def toggle_camera():
             
             # Reset grayscale when camera is activated
             grayscale_enabled.set(False)
-            grayscale_switch.configure(state="disabled")
+            # Enable grayscale switch ONLY when camera is active
+            grayscale_switch.configure(state="normal")
             
-            no_camera_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/icons8-no-camera-48.png"
+            # Enable zoom slider when camera is active
+            zoom_slider.configure(state="normal")
+            zoom_factor.set(1.0)
+            zoom_label.configure(text="1.0x")
+            
+            no_camera_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-no-camera-48.png"
             no_camera_pil = Image.open(no_camera_path)
             no_camera_icon_ctk = CTkImage(light_image=no_camera_pil, dark_image=no_camera_pil, size=(24, 24))
             
@@ -615,6 +628,14 @@ def toggle_camera():
         camera_active = False
         cap.release()
         
+        # Disable zoom slider when camera is stopped
+        zoom_slider.configure(state="disabled")
+        zoom_factor.set(1.0)
+        zoom_label.configure(text="1.0x")
+        
+        # Always disable grayscale switch when camera is stopped
+        grayscale_switch.configure(state="disabled")
+        
         camera_button.configure(
             text="Camera", 
             fg_color=("#000000"),
@@ -631,6 +652,13 @@ def toggle_camera():
         if hasattr(image_label, 'original_image'):
             image_label.configure(image=image_label.original_image)
             
+def update_zoom():
+    """Update the zoom label and apply zoom in camera feed"""
+    # Update the label with current zoom value
+    current_zoom = zoom_factor.get()
+    zoom_label.configure(text=f"{current_zoom:.1f}x")
+    
+
 def update_camera_feed():
     global img, img_tensor, camera_active
 
@@ -641,7 +669,37 @@ def update_camera_feed():
             # Flip the frame horizontally to create mirror effect
             frame = cv.flip(frame, 1)
             
+            # Apply zoom if zoom_factor is greater than 1.0
+            current_zoom = zoom_factor.get()
+            if current_zoom > 1.0:
+                # Get frame dimensions
+                h, w = frame.shape[:2]
+                
+                # Calculate new dimensions and offsets for zooming
+                new_h, new_w = int(h / current_zoom), int(w / current_zoom)
+                center_y, center_x = h // 2, w // 2
+                
+                # Calculate the crop region
+                top = center_y - new_h // 2
+                left = center_x - new_w // 2
+                
+                # Ensure crop region is within frame bounds
+                top = max(0, top)
+                left = max(0, left)
+                bottom = min(h, top + new_h)
+                right = min(w, left + new_w)
+                
+                # Crop and resize to original dimensions
+                zoomed_frame = frame[top:bottom, left:right]
+                frame = cv.resize(zoomed_frame, (w, h), interpolation=cv.INTER_LINEAR)
+            
             frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+            
+            # Apply grayscale if enabled (only during live view)
+            if grayscale_enabled.get():
+                gray_frame = cv.cvtColor(frame, cv.COLOR_RGB2GRAY)
+                frame = cv.cvtColor(gray_frame, cv.COLOR_GRAY2RGB)
+            
             img = frame
             
             img_tensor = torch.from_numpy(frame.transpose(2, 0, 1)).float() / 255.0
@@ -660,13 +718,10 @@ def update_camera_feed():
             keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
             
             if img_ratio > target_ratio:
-                
                 new_width = int(img_height * target_ratio)
                 left = (img_width - new_width) // 2
                 frame_display = frame_display.crop((left, 0, left + new_width, img_height))
-
             else:
-    
                 new_height = int(img_width / target_ratio)
                 top = (img_height - new_height) // 2
                 frame_display = frame_display.crop((0, top, img_width, top + new_height))
@@ -683,14 +738,20 @@ def update_camera_feed():
             detect_vertebrae_button.configure(state="disabled", fg_color=("gray75", "gray45"))
 
             if camera_active:
-
                 root.after(30, update_camera_feed)
         else:
-            
             camera_active = False
             cap.release()
             camera_button.configure(text="Camera", fg_color=("#000000"))
             detect_vertebrae_button.configure(state="disabled", fg_color=("gray75", "gray45"))
+            
+            # Disable zoom slider when camera is stopped
+            zoom_slider.configure(state="disabled")
+            zoom_factor.set(1.0)
+            zoom_label.configure(text="1.0x")
+            
+            # Always disable grayscale switch when camera is stopped
+            grayscale_switch.configure(state="disabled")
 
             if 'capture_button' in globals() and hasattr(capture_button, 'place_forget'):
                 capture_button.place_forget()
@@ -701,11 +762,25 @@ def update_camera_feed():
         if 'cap' in globals() and cap is not None and cap.isOpened():
             cap.release()
         camera_button.configure(text="Camera", fg_color=("#000000"))
+        
+        # Disable zoom slider when camera is stopped
+        zoom_slider.configure(state="disabled")
+        zoom_factor.set(1.0)
+        zoom_label.configure(text="1.0x")
+        
+        # Always disable grayscale switch when camera is stopped
+        grayscale_switch.configure(state="disabled")
+
 
 def capture_frame():
     global cap, camera_active, img, img_tensor
     
     if cap is not None and cap.isOpened():
+        # Get current zoom factor before capture
+        current_zoom = zoom_factor.get()
+        # Get current grayscale setting before capture
+        current_grayscale = grayscale_enabled.get()
+        
         # Set high resolution for capture 
         cap.set(cv.CAP_PROP_FRAME_WIDTH, 1280) #2560 optional
         cap.set(cv.CAP_PROP_FRAME_HEIGHT, 960) # 1920 optional
@@ -716,13 +791,37 @@ def capture_frame():
         
         ret, frame = cap.read()
         if ret:
-            
+            # Apply zoom to the captured frame if zoom is greater than 1.0
+            if current_zoom > 1.0:
+                # Get frame dimensions
+                h, w = frame.shape[:2]
+                
+                # Calculate new dimensions and offsets for zooming
+                new_h, new_w = int(h / current_zoom), int(w / current_zoom)
+                center_y, center_x = h // 2, w // 2
+                
+                # Calculate the crop region
+                top = center_y - new_h // 2
+                left = center_x - new_w // 2
+                
+                # Ensure crop region is within frame bounds
+                top = max(0, top)
+                left = max(0, left)
+                bottom = min(h, top + new_h)
+                right = min(w, left + new_w)
+                
+                # Crop and resize to original dimensions
+                zoomed_frame = frame[top:bottom, left:right]
+                frame = cv.resize(zoomed_frame, (w, h), interpolation=cv.INTER_LINEAR)
             frame = cv.flip(frame, 1)
             # Convert BGR (OpenCV default) to RGB for proper colors
             frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
             
-            # Always start with grayscale disabled for new captures
-            grayscale_enabled.set(False)
+            # Apply grayscale if it was enabled during capture
+            if current_grayscale:
+                gray_frame = cv.cvtColor(frame, cv.COLOR_RGB2GRAY)
+                frame = cv.cvtColor(gray_frame, cv.COLOR_GRAY2RGB)
+            
             img = frame.copy()
             
             # Convert to PyTorch tensor
@@ -738,6 +837,7 @@ def capture_frame():
             img_display = Image.fromarray(img)
             display_width = main_frame.winfo_width() - side_panel.winfo_width() - 40
             display_height = main_frame.winfo_height() - 40
+            
             # Store as original image for resizing during window changes
             image_label.original_image = img_display
             
@@ -751,8 +851,11 @@ def capture_frame():
             if detect_vertebrae_button:
                 detect_vertebrae_button.configure(state="normal", fg_color=("#000000"))
             
-            # Enable the grayscale switch now that we have an image
-            grayscale_switch.configure(state="normal")
+            # Disable grayscale switch after capture as requested
+            grayscale_switch.configure(state="disabled")
+            
+            # Disable zoom slider when image is captured
+            zoom_slider.configure(state="disabled")
             
             camera_active = False
             cap.release()
@@ -769,49 +872,9 @@ def capture_frame():
         else:
             messagebox.showerror("Error", "Failed to capture high-resolution image")
 
-# Add this function to apply grayscale to existing image
+# The apply_grayscale function is now only relevant during live camera view
 def apply_grayscale():
-    global img, img_tensor
-    
-    if img is not None:
-        if grayscale_enabled.get():
-            # Convert to grayscale but keep 3 channels for display
-            gray_img = cv.cvtColor(img, cv.COLOR_RGB2GRAY)
-            img = cv.cvtColor(gray_img, cv.COLOR_GRAY2RGB)
-            
-            # Update tensor
-            img_tensor = torch.from_numpy(img.transpose(2, 0, 1)).float() / 255.0
-        else:
-            # If turning off grayscale, we need to recapture or restore original
-            # For simplicity, this will require recapturing
-            if cap is not None and cap.isOpened():
-                capture_frame()
-            else:
-                messagebox.showinfo("Info", "Please recapture image to disable grayscale")
-                return
-        
-        # Update the display
-        img_display = Image.fromarray(img)
-        display_width = main_frame.winfo_width() - side_panel.winfo_width() - 40
-        display_height = main_frame.winfo_height() - 40
-        
-        # Store as original image for resizing during window changes
-        image_label.original_image = img_display
-        
-        # Resize image for better display
-        resized_image = resize_image_for_display(img_display, display_width, display_height)
-        ctk_image = CTkImage(light_image=resized_image, size=(display_width, display_height))
-        
-        image_label.configure(image=ctk_image)
-        image_label.image = ctk_image
-        
-        # Reset detection buttons if needed
-        if detect_vertebrae_button:
-            detect_vertebrae_button.configure(state="normal", fg_color=("#000000"))
-        if cobb_angle_button:
-            cobb_angle_button.configure(state="disabled", fg_color=("gray75", "gray45"))
-        if keypoints_button:
-            keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
+    pass
     
 # def capture_frame():
 #     global cap, camera_active, img, img_tensor
@@ -1617,7 +1680,7 @@ def add_save_button():
         save_cobb_button = None
 
     if not camera_active and img_with_cobb is not None:
-        save_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/save.png"
+        save_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\save.png"
         pil_image = Image.open(save_icon_path)
         save_icon = CTkImage(light_image=pil_image, size=(32, 32))
 
@@ -1647,7 +1710,6 @@ initialize_models()
 def on_escape(event):
     if root.state() == "zoomed":
         root.state("normal")
-        root.geometry("1920x1080") 
     else:
         root.state("zoomed")
 
@@ -1656,6 +1718,9 @@ root.title("Cobb Angle Calculation")
 root.geometry("1920x1080")
 root.grid_rowconfigure(0, weight=1)
 root.grid_columnconfigure(0, weight=1)
+
+# Bind the Escape key to the on_escape function
+root.bind("<Escape>", on_escape)
 
 # Main frame with grid
 main_frame = ctk.CTkFrame(root)
@@ -1707,7 +1772,7 @@ main_curve_frame.pack(side="left", padx=(0, 10))
 main_curve_frame.pack_propagate(False)  
 
 # Add the icon to the main curve frame
-main_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/angle-90.png"
+main_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\angle-90.png"
 main_icon_image = Image.open(main_icon_path)
 main_icon_ctk = CTkImage(light_image=main_icon_image, dark_image=main_icon_image, size=(24, 24))
 main_icon_label = ctk.CTkLabel(
@@ -1749,7 +1814,7 @@ secondary_curve_frame.pack(side="right", padx=(10, 0))
 secondary_curve_frame.pack_propagate(False)  
 
 # Add the icon to the secondary curve frame
-secondary_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/angle.png"
+secondary_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\angle.png"
 secondary_icon_image = Image.open(secondary_icon_path)
 secondary_icon_ctk = CTkImage(light_image=secondary_icon_image, dark_image=secondary_icon_image, size=(24, 24))
 secondary_icon_label = ctk.CTkLabel(
@@ -1797,7 +1862,7 @@ curve_type_frame.pack(side="left", padx=(0, 10))
 curve_type_frame.pack_propagate(False)  
 
 # Add the icon to the curve type frame
-curve_type_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/scoliosis.png"
+curve_type_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\scoliosis.png"
 curve_type_icon_image = Image.open(curve_type_icon_path)
 curve_type_icon_ctk = CTkImage(light_image=curve_type_icon_image, dark_image=curve_type_icon_image, size=(24, 24))
 curve_type_icon_label = ctk.CTkLabel(
@@ -1838,7 +1903,7 @@ severity_frame.pack(side="right", padx=(10, 0))
 severity_frame.pack_propagate(False)  
 
 # Add the icon to the severity frame
-severity_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/rating.png"
+severity_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\rating.png"
 severity_icon_image = Image.open(severity_icon_path)
 severity_icon_ctk = CTkImage(light_image=severity_icon_image, dark_image=severity_icon_image, size=(24, 24))
 severity_icon_label = ctk.CTkLabel(
@@ -1866,7 +1931,7 @@ severity_subtitle_label = ctk.CTkLabel(
 severity_subtitle_label.pack(pady=(0, 3))
 
 #Process buttons
-measure_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/ruler.png"
+measure_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\ruler.png"
 measure_icon_image = Image.open(measure_path)
 measure_icon_ctk = CTkImage(light_image=measure_icon_image, dark_image=measure_icon_image, size=(24, 24))
 cobb_angle_button = ctk.CTkButton(
@@ -1883,7 +1948,7 @@ cobb_angle_button = ctk.CTkButton(
 )
 cobb_angle_button.pack(side="bottom", pady=(5, 20), padx=20)
 
-target_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/points.png"
+target_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\points.png"
 target_icon_image = Image.open(target_path)
 target_icon_ctk = CTkImage(light_image=target_icon_image, dark_image=target_icon_image, size=(24, 24))
 keypoints_button = ctk.CTkButton(
@@ -1901,7 +1966,7 @@ keypoints_button = ctk.CTkButton(
 )
 keypoints_button.pack(side="bottom", pady=(5, 5), padx=20)
 
-bone_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/bounding-box.png"
+bone_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\bounding-box.png"
 bone_icon_image = Image.open(bone_path)
 bone_icon_ctk = CTkImage(light_image=bone_icon_image, dark_image=bone_icon_image, size=(24, 24))
 detect_vertebrae_button = ctk.CTkButton(
@@ -1922,7 +1987,7 @@ detect_vertebrae_button.pack(side="bottom", pady=(5, 5), padx=20)
 button_frame = ctk.CTkFrame(side_panel, fg_color="transparent") 
 button_frame.pack(side="bottom", pady=(5, 5), padx=20)
 
-camera_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/camera.png"
+camera_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\camera.png"
 camera_icon_image = Image.open(camera_path)
 camera_icon_ctk = CTkImage(light_image=camera_icon_image, dark_image=camera_icon_image, size=(24, 24))
 camera_button = ctk.CTkButton(
@@ -1939,7 +2004,7 @@ camera_button = ctk.CTkButton(
 camera_button.pack(side="left", padx=(0, 10))  
 camera_button.image = camera_icon_ctk 
 
-image_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/picture.png"
+image_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\picture.png"
 image_icon_image = Image.open(image_path)
 image_icon_ctk = CTkImage(light_image=image_icon_image, dark_image=image_icon_image, size=(24, 24))
 open_button = ctk.CTkButton(
@@ -2014,7 +2079,7 @@ confidence_switch = ctk.CTkSwitch(
 confidence_switch.pack(side="top", pady=5, padx=20)
 
 filter_option = ctk.CTkLabel(
-    side_panel, text="Filter:", anchor="w",
+    side_panel, text="Camera Options:", anchor="w",
     text_color=("gray50", "gray70"), font=("Arial", 12)
 )
 filter_option.pack(side="top", pady=(10, 10), padx=20)
@@ -2032,6 +2097,29 @@ grayscale_switch = ctk.CTkSwitch(
 )
 grayscale_switch.pack(side="top", pady=5, padx=20)
 
+# Define a global variable for zoom factor
+zoom_factor = ctk.DoubleVar(value=1.0)
+
+# Create the zoom slider
+zoom_slider = ctk.CTkSlider(
+    side_panel,
+    from_=1.0,
+    to=3.0,
+    number_of_steps=20,
+    variable=zoom_factor,
+    width=button_width // 1,
+    command=lambda value: update_zoom(),
+    state="disabled"  # Start disabled
+)
+zoom_slider.pack(side="top", pady=5, padx=20)
+
+# Add a label for the zoom slider
+zoom_label = ctk.CTkLabel(
+    side_panel,
+    text="1.0x",
+    font=("Helvetica", 10)
+)
+zoom_label.pack(side="top", pady=(0, 1), padx=20)
 
 spacer_bottom = ctk.CTkLabel(side_panel, text="", height=50)
 spacer_bottom.pack(side="bottom")
