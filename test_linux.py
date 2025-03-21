@@ -63,14 +63,12 @@ def get_kprcnn_model(path):
         return None
 
 
-
 def initialize_models():
     global model, bbox_model, vertebra_boxes, vertebra_confidences
     bbox_path = "/home/raspi/Desktop/models/model2.pt"
     detector_path = "/home/raspi/Desktop/models/model1.pt"
     model = get_kprcnn_model(detector_path)
     bbox_model = YOLO(bbox_path)
-
 
 # Helper function to load and process an image
 def open_image_path(path):
@@ -582,6 +580,10 @@ def toggle_camera():
             
             camera_active = True
             
+            # Reset grayscale when camera is activated
+            grayscale_enabled.set(False)
+            grayscale_switch.configure(state="disabled")
+            
             no_camera_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/icons8-no-camera-48.png"
             no_camera_pil = Image.open(no_camera_path)
             no_camera_icon_ctk = CTkImage(light_image=no_camera_pil, dark_image=no_camera_pil, size=(24, 24))
@@ -647,8 +649,8 @@ def update_camera_feed():
             frame_display = Image.fromarray(frame)
             
             # Use smaller display dimensions for better performance on Raspberry Pi
-            display_width = min(495, main_frame.winfo_width() - side_panel.winfo_width() - 40)
-            display_height = min(620, main_frame.winfo_height() - 40)
+            display_width = min(810, main_frame.winfo_width() - side_panel.winfo_width() - 40)
+            display_height = min(970, main_frame.winfo_height() - 40)
             
             img_width, img_height = frame_display.size
             target_ratio = display_width / display_height
@@ -703,14 +705,12 @@ def update_camera_feed():
 def capture_frame():
     global cap, camera_active, img, img_tensor
     
-    
     if cap is not None and cap.isOpened():
         # Set high resolution for capture 
         cap.set(cv.CAP_PROP_FRAME_WIDTH, 1280) #2560 optional
         cap.set(cv.CAP_PROP_FRAME_HEIGHT, 960) # 1920 optional
         
         time.sleep(0.2)
-
         for _ in range(3):  
             cap.read()
         
@@ -718,20 +718,15 @@ def capture_frame():
         if ret:
             
             frame = cv.flip(frame, 1)
-
             # Convert BGR (OpenCV default) to RGB for proper colors
             frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-            img = frame 
-
-            # original_img = frame.copy()
-
-            # gray_img = cv.cvtColor(original_img, cv.COLOR_RGB2GRAY)
             
-            # img = cv.cvtColor(gray_img, cv.COLOR_GRAY2RGB)
+            # Always start with grayscale disabled for new captures
+            grayscale_enabled.set(False)
+            img = frame.copy()
             
             # Convert to PyTorch tensor
-            img_tensor = torch.from_numpy(frame.transpose(2, 0, 1)).float() / 255.0
-
+            img_tensor = torch.from_numpy(img.transpose(2, 0, 1)).float() / 255.0
             # Update detect button state
             update_detect_button_state()
         
@@ -739,12 +734,10 @@ def capture_frame():
                 cobb_angle_button.configure(state="disabled", fg_color=("gray75", "gray45"))
             if keypoints_button:
                 keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
-
             # Display the captured frame
             img_display = Image.fromarray(img)
             display_width = main_frame.winfo_width() - side_panel.winfo_width() - 40
             display_height = main_frame.winfo_height() - 40
-
             # Store as original image for resizing during window changes
             image_label.original_image = img_display
             
@@ -754,27 +747,71 @@ def capture_frame():
             
             image_label.configure(image=ctk_image)
             image_label.image = ctk_image  
-
+            
             if detect_vertebrae_button:
                 detect_vertebrae_button.configure(state="normal", fg_color=("#000000"))
-
+            
+            # Enable the grayscale switch now that we have an image
+            grayscale_switch.configure(state="normal")
+            
             camera_active = False
             cap.release()
             cap = None  
             
             if camera_button:
-                camera_button.configure(text="Camera", fg_color=("#000000"))
-
+                camera_button.configure(text="Camera", fg_color=("#000000"), image=camera_icon_ctk)
             # Hide capture button if it exists
             if 'capture_button' in globals() and capture_button:
                 try:
                     capture_button.place_forget()
                 except AttributeError:
                     pass  
-
         else:
-            
             messagebox.showerror("Error", "Failed to capture high-resolution image")
+
+# Add this function to apply grayscale to existing image
+def apply_grayscale():
+    global img, img_tensor
+    
+    if img is not None:
+        if grayscale_enabled.get():
+            # Convert to grayscale but keep 3 channels for display
+            gray_img = cv.cvtColor(img, cv.COLOR_RGB2GRAY)
+            img = cv.cvtColor(gray_img, cv.COLOR_GRAY2RGB)
+            
+            # Update tensor
+            img_tensor = torch.from_numpy(img.transpose(2, 0, 1)).float() / 255.0
+        else:
+            # If turning off grayscale, we need to recapture or restore original
+            # For simplicity, this will require recapturing
+            if cap is not None and cap.isOpened():
+                capture_frame()
+            else:
+                messagebox.showinfo("Info", "Please recapture image to disable grayscale")
+                return
+        
+        # Update the display
+        img_display = Image.fromarray(img)
+        display_width = main_frame.winfo_width() - side_panel.winfo_width() - 40
+        display_height = main_frame.winfo_height() - 40
+        
+        # Store as original image for resizing during window changes
+        image_label.original_image = img_display
+        
+        # Resize image for better display
+        resized_image = resize_image_for_display(img_display, display_width, display_height)
+        ctk_image = CTkImage(light_image=resized_image, size=(display_width, display_height))
+        
+        image_label.configure(image=ctk_image)
+        image_label.image = ctk_image
+        
+        # Reset detection buttons if needed
+        if detect_vertebrae_button:
+            detect_vertebrae_button.configure(state="normal", fg_color=("#000000"))
+        if cobb_angle_button:
+            cobb_angle_button.configure(state="disabled", fg_color=("gray75", "gray45"))
+        if keypoints_button:
+            keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
     
 # def capture_frame():
 #     global cap, camera_active, img, img_tensor
@@ -1610,13 +1647,13 @@ initialize_models()
 def on_escape(event):
     if root.state() == "zoomed":
         root.state("normal")
-        root.geometry("1171x661") 
+        root.geometry("1920x1080") 
     else:
         root.state("zoomed")
 
 root = ctk.CTk()
 root.title("Cobb Angle Calculation")
-root.geometry("1171x661")
+root.geometry("1920x1080")
 root.grid_rowconfigure(0, weight=1)
 root.grid_columnconfigure(0, weight=1)
 
@@ -1842,7 +1879,7 @@ cobb_angle_button = ctk.CTkButton(
     width=260,
     state="disabled", 
     fg_color=("gray75", "gray45"),  
-    height=40
+    height=60
 )
 cobb_angle_button.pack(side="bottom", pady=(5, 20), padx=20)
 
@@ -1860,7 +1897,7 @@ keypoints_button = ctk.CTkButton(
     fg_color=("gray75", "gray45"),  
     width=button_width,
     anchor="center",  
-    height=40
+    height=60
 )
 keypoints_button.pack(side="bottom", pady=(5, 5), padx=20)
 
@@ -1877,7 +1914,7 @@ detect_vertebrae_button = ctk.CTkButton(
     fg_color=("gray75", "gray45"),
     corner_radius=10,
     width=button_width,
-    height=40
+    height=60
 )
 detect_vertebrae_button.pack(side="bottom", pady=(5, 5), padx=20)
 
@@ -1896,7 +1933,7 @@ camera_button = ctk.CTkButton(
     command=toggle_camera,
     corner_radius=10,
     width=115,  
-    height=40,
+    height=60,
     anchor="center"
 )
 camera_button.pack(side="left", padx=(0, 10))  
@@ -1913,7 +1950,7 @@ open_button = ctk.CTkButton(
     command=open_file,
     corner_radius=10,
     width=150,  
-    height=40,
+    height=60,
     anchor="center"
 )
 open_button.pack(side="left")
@@ -1925,20 +1962,20 @@ detection_label = ctk.CTkLabel(
     side_panel, text="Detection Method:", anchor="w",
     text_color=("gray50", "gray70"), font=("Arial", 12)
 )
-detection_label.pack(side="top", pady=(1, 5), padx=20)
+detection_label.pack(side="top", pady=(20, 20), padx=20)
 
-# Create a frame to hold the radio buttons
+# Create a frame to hold the radio buttons vertically
 radio_frame = ctk.CTkFrame(side_panel, fg_color="transparent")
 radio_frame.pack(side="top", pady=5, padx=20, fill="x")
 
-# Add the radio buttons to the frame side by side
+# Add the radio buttons to the frame vertically
 model1_radio = ctk.CTkRadioButton(
     radio_frame,
     text="Model 1",
     variable=detection_var,
     value="Model1",
 )
-model1_radio.pack(side="left", padx=(0, 10))
+model1_radio.pack(side="top", pady=(0, 10), anchor="w")  # Changed to "top" for vertical stacking
 
 model2_radio = ctk.CTkRadioButton(
     radio_frame,
@@ -1946,13 +1983,13 @@ model2_radio = ctk.CTkRadioButton(
     variable=detection_var,
     value="YOLO",
 )
-model2_radio.pack(side="left")
+model2_radio.pack(side="top", anchor="w")  # Changed to "top" for vertical stacking
 
 display_options_label = ctk.CTkLabel(
     side_panel, text="Display Options:", anchor="w",
     text_color=("gray50", "gray70"), font=("Arial", 12)
 )
-display_options_label.pack(side="top", pady=(1, 5), padx=20)
+display_options_label.pack(side="top", pady=(20, 20), padx=20)
 
 # Create BooleanVar for checkboxes
 show_labels = ctk.BooleanVar(value=False)
@@ -1975,6 +2012,26 @@ confidence_switch = ctk.CTkSwitch(
     command=lambda: detect_vertebrae() if vertebra_boxes is not None else None,
 )
 confidence_switch.pack(side="top", pady=5, padx=20)
+
+filter_option = ctk.CTkLabel(
+    side_panel, text="Filter:", anchor="w",
+    text_color=("gray50", "gray70"), font=("Arial", 12)
+)
+filter_option.pack(side="top", pady=(10, 10), padx=20)
+# Add this with your other global variable declarations
+grayscale_enabled = ctk.BooleanVar(value=False)
+
+# Add this switch button after your other switches
+grayscale_switch = ctk.CTkSwitch(
+    side_panel,
+    text="Grayscale Mode",
+    variable=grayscale_enabled,
+    width=button_width // 1,
+    command=lambda: apply_grayscale() if img is not None else None,
+    state="disabled"  # Start disabled
+)
+grayscale_switch.pack(side="top", pady=5, padx=20)
+
 
 spacer_bottom = ctk.CTkLabel(side_panel, text="", height=50)
 spacer_bottom.pack(side="bottom")
