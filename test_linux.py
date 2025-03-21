@@ -70,6 +70,13 @@ def initialize_models():
     model = get_kprcnn_model(detector_path)
     bbox_model = YOLO(bbox_path)
 
+# def initialize_models():
+#     global model, bbox_model, vertebra_boxes, vertebra_confidences
+#     bbox_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model2.pt"
+#     detector_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model1.pt"
+#     model = get_kprcnn_model(detector_path)
+#     bbox_model = YOLO(bbox_path)
+
 # Helper function to load and process an image
 def open_image_path(path):
     img = cv.imread(path)
@@ -980,201 +987,14 @@ def detect_vertebrae():
         status_label.configure(text="Processing detection results...")
         main_frame.update()
 
-        # Draw bounding boxes with optional labels and confidence scores
-        img_with_boxes = img.copy()
-        
-        # Font settings
-        font = cv.FONT_HERSHEY_SIMPLEX
-        font_scale = 0.8
-        font_thickness = 2
-
-        for idx, (box, conf) in enumerate(
-            zip(vertebra_boxes, vertebra_confidences)
-        ):
-            x1, y1, x2, y2 = map(int, box[:4])
-
-            overlay = img_with_boxes.copy()
-            alpha = 0.2  
-
-            # Draw filled rectangle with transparency
-            cv.rectangle(
-                overlay, (x1, y1), (x2, y2), (80, 200, 255), -1
-            )  # Light blue fill
-            cv.addWeighted(
-                overlay, alpha, img_with_boxes, 1 - alpha, 0, img_with_boxes
-            )
-
-            # Horizontal lines (top and bottom)
-            dash_length = 10
-            gap_length = 5
-            color = (30, 144, 255)  
-            thickness = 2
-
-            # Draw dashed lines for top and bottom borders
-            for x in range(x1, x2, dash_length + gap_length):
-                x_end = min(x + dash_length, x2)
-                cv.line(
-                    img_with_boxes,
-                    (x, y1),
-                    (x_end, y1),
-                    color,
-                    thickness,
-                    cv.LINE_AA,
-                )
-                cv.line(
-                    img_with_boxes,
-                    (x, y2),
-                    (x_end, y2),
-                    color,
-                    thickness,
-                    cv.LINE_AA,
-                )
-
-            # Draw dashed lines for left and right borders
-            for y in range(y1, y2, dash_length + gap_length):
-                y_end = min(y + dash_length, y2)
-                cv.line(
-                    img_with_boxes,
-                    (x1, y),
-                    (x1, y_end),
-                    color,
-                    thickness,
-                    cv.LINE_AA,
-                )
-                cv.line(
-                    img_with_boxes,
-                    (x2, y),
-                    (x2, y_end),
-                    color,
-                    thickness,
-                    cv.LINE_AA,
-                )
-
-            # Add corner highlights for emphasis (solid corners)
-            corner_length = 15
-            # Top-left corner
-            cv.line(
-                img_with_boxes,
-                (x1, y1),
-                (x1 + corner_length, y1),
-                color,
-                thickness + 1,
-                cv.LINE_AA,
-            )
-            cv.line(
-                img_with_boxes,
-                (x1, y1),
-                (x1, y1 + corner_length),
-                color,
-                thickness + 1,
-                cv.LINE_AA,
-            )
-            # Top-right corner
-            cv.line(
-                img_with_boxes,
-                (x2, y1),
-                (x2 - corner_length, y1),
-                color,
-                thickness + 1,
-                cv.LINE_AA,
-            )
-            cv.line(
-                img_with_boxes,
-                (x2, y1),
-                (x2, y1 + corner_length),
-                color,
-                thickness + 1,
-                cv.LINE_AA,
-            )
-            # Bottom-left corner
-            cv.line(
-                img_with_boxes,
-                (x1, y2),
-                (x1 + corner_length, y2),
-                color,
-                thickness + 1,
-                cv.LINE_AA,
-            )
-            cv.line(
-                img_with_boxes,
-                (x1, y2),
-                (x1, y2 - corner_length),
-                color,
-                thickness + 1,
-                cv.LINE_AA,
-            )
-            # Bottom-right corner
-            cv.line(
-                img_with_boxes,
-                (x2, y2),
-                (x2 - corner_length, y2),
-                color,
-                thickness + 1,
-                cv.LINE_AA,
-            )
-            cv.line(
-                img_with_boxes,
-                (x2, y2),
-                (x2, y2 - corner_length),
-                color,
-                thickness + 1,
-                cv.LINE_AA,
-            )
-
-            # Prepare label text based on checkbox selections
-            label_parts = []
-            if show_labels.get():
-                label_parts.append("Vertebra")
-            if show_confidence.get():
-                label_parts.append(f"{conf:.2f}")
-
-            # Only proceed with label if there's something to show
-            if label_parts:
-                label = ": ".join(label_parts)
-
-                # Get text size for background rectangle
-                (text_width, text_height), baseline = cv.getTextSize(
-                    label, font, font_scale, font_thickness
-                )
-
-                # Draw background rectangle for text
-                cv.rectangle(
-                    img_with_boxes,
-                    (x1, y1 - text_height - 10),
-                    (x1 + text_width + 10, y1),
-                    (0, 76, 153),
-                    -1,
-                )  # Filled rectangle
-
-                # Draw text with black color for better visibility
-                cv.putText(
-                    img_with_boxes,
-                    label,
-                    (x1 + 5, y1 - 5),
-                    font,
-                    font_scale,
-                    (0, 0, 0),  # Black text
-                    font_thickness,
-                )
-
         # Clean up the status label before updating the display
         status_frame.destroy()
         main_frame.update()
-
-        # Update display
-        img_display = Image.fromarray(img_with_boxes)
-        display_width = (
-            main_frame.winfo_width() - side_panel.winfo_width() - 40
-        )
-        display_height = main_frame.winfo_height() - 40
-
-        image_label.original_image = img_display
-        resized_image = resize_image_for_display(
-            img_display, display_width, display_height
-        )
-        ctk_image = CTkImage(light_image=resized_image, size=(display_width, display_height))
-        image_label.configure(image=ctk_image)
-        image_label.image = ctk_image
+        
+        # Update the display with detected boxes
+        update_vertebrae_display()
+        
+        # Enable keypoints button
         keypoints_button.configure(
             state="normal", fg_color=("#000000")
         )
@@ -1185,6 +1005,204 @@ def detect_vertebrae():
             status_frame.destroy()
             main_frame.update()
         messagebox.showerror("Error", f"Failed to detect vertebrae: {str(e)}")
+
+def update_vertebrae_display():
+    global img, vertebra_boxes, vertebra_confidences, show_labels, show_confidence
+    
+    if img is None or vertebra_boxes is None:
+        return
+    
+    # Start with a clean copy of the original image
+    img_with_boxes = img.copy()
+    
+    # Font settings
+    font = cv.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.8
+    font_thickness = 2
+
+    for idx, (box, conf) in enumerate(
+        zip(vertebra_boxes, vertebra_confidences)
+    ):
+        x1, y1, x2, y2 = map(int, box[:4])
+
+        overlay = img_with_boxes.copy()
+        alpha = 0.2  
+
+        # Draw filled rectangle with transparency
+        cv.rectangle(
+            overlay, (x1, y1), (x2, y2), (80, 200, 255), -1
+        )  # Light blue fill
+        cv.addWeighted(
+            overlay, alpha, img_with_boxes, 1 - alpha, 0, img_with_boxes
+        )
+
+        # Horizontal lines (top and bottom)
+        dash_length = 10
+        gap_length = 5
+        color = (30, 144, 255)  
+        thickness = 2
+
+        # Draw dashed lines for top and bottom borders
+        for x in range(x1, x2, dash_length + gap_length):
+            x_end = min(x + dash_length, x2)
+            cv.line(
+                img_with_boxes,
+                (x, y1),
+                (x_end, y1),
+                color,
+                thickness,
+                cv.LINE_AA,
+            )
+            cv.line(
+                img_with_boxes,
+                (x, y2),
+                (x_end, y2),
+                color,
+                thickness,
+                cv.LINE_AA,
+            )
+
+        # Draw dashed lines for left and right borders
+        for y in range(y1, y2, dash_length + gap_length):
+            y_end = min(y + dash_length, y2)
+            cv.line(
+                img_with_boxes,
+                (x1, y),
+                (x1, y_end),
+                color,
+                thickness,
+                cv.LINE_AA,
+            )
+            cv.line(
+                img_with_boxes,
+                (x2, y),
+                (x2, y_end),
+                color,
+                thickness,
+                cv.LINE_AA,
+            )
+
+        # Add corner highlights for emphasis (solid corners)
+        corner_length = 15
+        # Top-left corner
+        cv.line(
+            img_with_boxes,
+            (x1, y1),
+            (x1 + corner_length, y1),
+            color,
+            thickness + 1,
+            cv.LINE_AA,
+        )
+        cv.line(
+            img_with_boxes,
+            (x1, y1),
+            (x1, y1 + corner_length),
+            color,
+            thickness + 1,
+            cv.LINE_AA,
+        )
+        # Top-right corner
+        cv.line(
+            img_with_boxes,
+            (x2, y1),
+            (x2 - corner_length, y1),
+            color,
+            thickness + 1,
+            cv.LINE_AA,
+        )
+        cv.line(
+            img_with_boxes,
+            (x2, y1),
+            (x2, y1 + corner_length),
+            color,
+            thickness + 1,
+            cv.LINE_AA,
+        )
+        # Bottom-left corner
+        cv.line(
+            img_with_boxes,
+            (x1, y2),
+            (x1 + corner_length, y2),
+            color,
+            thickness + 1,
+            cv.LINE_AA,
+        )
+        cv.line(
+            img_with_boxes,
+            (x1, y2),
+            (x1, y2 - corner_length),
+            color,
+            thickness + 1,
+            cv.LINE_AA,
+        )
+        # Bottom-right corner
+        cv.line(
+            img_with_boxes,
+            (x2, y2),
+            (x2 - corner_length, y2),
+            color,
+            thickness + 1,
+            cv.LINE_AA,
+        )
+        cv.line(
+            img_with_boxes,
+            (x2, y2),
+            (x2, y2 - corner_length),
+            color,
+            thickness + 1,
+            cv.LINE_AA,
+        )
+
+        # Prepare label text based on checkbox selections
+        label_parts = []
+        if show_labels.get():
+            label_parts.append("Vertebra")
+        if show_confidence.get():
+            label_parts.append(f"{conf:.2f}")
+
+        # Only proceed with label if there's something to show
+        if label_parts:
+            label = ": ".join(label_parts)
+
+            # Get text size for background rectangle
+            (text_width, text_height), baseline = cv.getTextSize(
+                label, font, font_scale, font_thickness
+            )
+
+            # Draw background rectangle for text
+            cv.rectangle(
+                img_with_boxes,
+                (x1, y1 - text_height - 10),
+                (x1 + text_width + 10, y1),
+                (0, 76, 153),
+                -1,
+            )  # Filled rectangle
+
+            # Draw text with black color for better visibility
+            cv.putText(
+                img_with_boxes,
+                label,
+                (x1 + 5, y1 - 5),
+                font,
+                font_scale,
+                (0, 0, 0),  # Black text
+                font_thickness,
+            )
+
+    # Update display
+    img_display = Image.fromarray(img_with_boxes)
+    display_width = (
+        main_frame.winfo_width() - side_panel.winfo_width() - 40
+    )
+    display_height = main_frame.winfo_height() - 40
+
+    image_label.original_image = img_display
+    resized_image = resize_image_for_display(
+        img_display, display_width, display_height
+    )
+    ctk_image = CTkImage(light_image=resized_image, size=(display_width, display_height))
+    image_label.configure(image=ctk_image)
+    image_label.image = ctk_image
 
 
 def show_keypoints():
@@ -2020,11 +2038,11 @@ detection_label = ctk.CTkLabel(
     side_panel, text="Detection Method:", anchor="w",
     text_color=("gray50", "gray70"), font=("Arial", 12)
 )
-detection_label.pack(side="top", pady=(20, 20), padx=20)
+detection_label.pack(side="top", pady=(10, 10), padx=20)
 
 # Create a frame to hold the radio buttons vertically
 radio_frame = ctk.CTkFrame(side_panel, fg_color="transparent")
-radio_frame.pack(side="top", pady=5, padx=20, fill="x")
+radio_frame.pack(side="top", pady=10, padx=20, fill="x")
 
 # Add the radio buttons to the frame vertically
 model1_radio = ctk.CTkRadioButton(
@@ -2033,7 +2051,7 @@ model1_radio = ctk.CTkRadioButton(
     variable=detection_var,
     value="Model1",
 )
-model1_radio.pack(side="top", pady=(0, 10), anchor="w")  # Changed to "top" for vertical stacking
+model1_radio.pack(side="top", pady=(0, 20), anchor="w")  # Changed to "top" for vertical stacking
 
 model2_radio = ctk.CTkRadioButton(
     radio_frame,
@@ -2047,7 +2065,7 @@ display_options_label = ctk.CTkLabel(
     side_panel, text="Display Options:", anchor="w",
     text_color=("gray50", "gray70"), font=("Arial", 12)
 )
-display_options_label.pack(side="top", pady=(20, 20), padx=20)
+display_options_label.pack(side="top", pady=(10, 10), padx=20)
 
 # Create BooleanVar for checkboxes
 show_labels = ctk.BooleanVar(value=False)
@@ -2058,18 +2076,18 @@ labels_switch = ctk.CTkSwitch(
     text="Show Labels",
     variable=show_labels,
     width=button_width // 1,
-    command=lambda: detect_vertebrae() if vertebra_boxes is not None else None,
+    command=lambda: update_vertebrae_display() if vertebra_boxes is not None else None,
 )
-labels_switch.pack(side="top", pady=5, padx=20)
+labels_switch.pack(side="top", pady=10, padx=20)
 
 confidence_switch = ctk.CTkSwitch(
     side_panel,
     text="Show Confidence",
     variable=show_confidence,
     width=button_width // 1,
-    command=lambda: detect_vertebrae() if vertebra_boxes is not None else None,
+    command=lambda: update_vertebrae_display() if vertebra_boxes is not None else None,
 )
-confidence_switch.pack(side="top", pady=5, padx=20)
+confidence_switch.pack(side="top", pady=10, padx=20)
 
 filter_option = ctk.CTkLabel(
     side_panel, text="Camera Options:", anchor="w",
@@ -2088,7 +2106,7 @@ grayscale_switch = ctk.CTkSwitch(
     command=lambda: apply_grayscale() if img is not None else None,
     state="disabled"  # Start disabled
 )
-grayscale_switch.pack(side="top", pady=5, padx=20)
+grayscale_switch.pack(side="top", pady=10, padx=20)
 
 # Define a global variable for zoom factor
 zoom_factor = ctk.DoubleVar(value=1.0)
@@ -2104,7 +2122,7 @@ zoom_slider = ctk.CTkSlider(
     command=lambda value: update_zoom(),
     state="disabled"  # Start disabled
 )
-zoom_slider.pack(side="top", pady=5, padx=20)
+zoom_slider.pack(side="top", pady=10, padx=20)
 
 # Add a label for the zoom slider
 zoom_label = ctk.CTkLabel(
@@ -2112,7 +2130,7 @@ zoom_label = ctk.CTkLabel(
     text="1.0x",
     font=("Helvetica", 10)
 )
-zoom_label.pack(side="top", pady=(0, 1), padx=20)
+zoom_label.pack(side="top", pady=(0,1), padx=20)
 
 spacer_bottom = ctk.CTkLabel(side_panel, text="", height=50)
 spacer_bottom.pack(side="bottom")
