@@ -1433,7 +1433,14 @@ def apply_cobb_angle():
 
         # Check if the curve is S-type
         is_s_curve = check_s_curve(mid_p_v)
-        curve_type = "S" if is_s_curve else "C"
+
+        # First check if it's "No Scoliosis" based on the main angle
+        if main_angle < 10:
+            curve_type = "Normal"
+        else:
+            # If there is scoliosis, then determine if it's S or C type
+            curve_type = "S" if is_s_curve else "C"
+
         severity = classify_severity(main_angle)
 
         # Update result text for side display
