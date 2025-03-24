@@ -63,7 +63,6 @@ def get_kprcnn_model(path):
         return None
 
 
-
 def initialize_models():
     global model, bbox_model, vertebra_boxes, vertebra_confidences
     bbox_path = "/home/raspi/Desktop/models/model2.pt"
@@ -71,6 +70,12 @@ def initialize_models():
     model = get_kprcnn_model(detector_path)
     bbox_model = YOLO(bbox_path)
 
+# def initialize_models():
+#     global model, bbox_model, vertebra_boxes, vertebra_confidences
+#     bbox_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model2.pt"
+#     detector_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model1.pt"
+#     model = get_kprcnn_model(detector_path)
+#     bbox_model = YOLO(bbox_path)
 
 # Helper function to load and process an image
 def open_image_path(path):
@@ -582,6 +587,16 @@ def toggle_camera():
             
             camera_active = True
             
+            # Reset grayscale when camera is activated
+            grayscale_enabled.set(False)
+            # Enable grayscale switch ONLY when camera is active
+            grayscale_switch.configure(state="normal")
+            
+            # Enable zoom slider when camera is active
+            zoom_slider.configure(state="normal")
+            zoom_factor.set(1.0)
+            zoom_label.configure(text="1.0x")
+            
             no_camera_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/icons8-no-camera-48.png"
             no_camera_pil = Image.open(no_camera_path)
             no_camera_icon_ctk = CTkImage(light_image=no_camera_pil, dark_image=no_camera_pil, size=(24, 24))
@@ -613,6 +628,14 @@ def toggle_camera():
         camera_active = False
         cap.release()
         
+        # Disable zoom slider when camera is stopped
+        zoom_slider.configure(state="disabled")
+        zoom_factor.set(1.0)
+        zoom_label.configure(text="1.0x")
+        
+        # Always disable grayscale switch when camera is stopped
+        grayscale_switch.configure(state="disabled")
+        
         camera_button.configure(
             text="Camera", 
             fg_color=("#000000"),
@@ -629,6 +652,13 @@ def toggle_camera():
         if hasattr(image_label, 'original_image'):
             image_label.configure(image=image_label.original_image)
             
+def update_zoom():
+    """Update the zoom label and apply zoom in camera feed"""
+    # Update the label with current zoom value
+    current_zoom = zoom_factor.get()
+    zoom_label.configure(text=f"{current_zoom:.1f}x")
+    
+
 def update_camera_feed():
     global img, img_tensor, camera_active
 
@@ -639,7 +669,37 @@ def update_camera_feed():
             # Flip the frame horizontally to create mirror effect
             frame = cv.flip(frame, 1)
             
+            # Apply zoom if zoom_factor is greater than 1.0
+            current_zoom = zoom_factor.get()
+            if current_zoom > 1.0:
+                # Get frame dimensions
+                h, w = frame.shape[:2]
+                
+                # Calculate new dimensions and offsets for zooming
+                new_h, new_w = int(h / current_zoom), int(w / current_zoom)
+                center_y, center_x = h // 2, w // 2
+                
+                # Calculate the crop region
+                top = center_y - new_h // 2
+                left = center_x - new_w // 2
+                
+                # Ensure crop region is within frame bounds
+                top = max(0, top)
+                left = max(0, left)
+                bottom = min(h, top + new_h)
+                right = min(w, left + new_w)
+                
+                # Crop and resize to original dimensions
+                zoomed_frame = frame[top:bottom, left:right]
+                frame = cv.resize(zoomed_frame, (w, h), interpolation=cv.INTER_LINEAR)
+            
             frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+            
+            # Apply grayscale if enabled (only during live view)
+            if grayscale_enabled.get():
+                gray_frame = cv.cvtColor(frame, cv.COLOR_RGB2GRAY)
+                frame = cv.cvtColor(gray_frame, cv.COLOR_GRAY2RGB)
+            
             img = frame
             
             img_tensor = torch.from_numpy(frame.transpose(2, 0, 1)).float() / 255.0
@@ -647,8 +707,8 @@ def update_camera_feed():
             frame_display = Image.fromarray(frame)
             
             # Use smaller display dimensions for better performance on Raspberry Pi
-            display_width = min(495, main_frame.winfo_width() - side_panel.winfo_width() - 40)
-            display_height = min(620, main_frame.winfo_height() - 40)
+            display_width = min(810, main_frame.winfo_width() - side_panel.winfo_width() - 40)
+            display_height = min(970, main_frame.winfo_height() - 40)
             
             img_width, img_height = frame_display.size
             target_ratio = display_width / display_height
@@ -658,13 +718,10 @@ def update_camera_feed():
             keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
             
             if img_ratio > target_ratio:
-                
                 new_width = int(img_height * target_ratio)
                 left = (img_width - new_width) // 2
                 frame_display = frame_display.crop((left, 0, left + new_width, img_height))
-
             else:
-    
                 new_height = int(img_width / target_ratio)
                 top = (img_height - new_height) // 2
                 frame_display = frame_display.crop((0, top, img_width, top + new_height))
@@ -681,14 +738,20 @@ def update_camera_feed():
             detect_vertebrae_button.configure(state="disabled", fg_color=("gray75", "gray45"))
 
             if camera_active:
-
                 root.after(30, update_camera_feed)
         else:
-            
             camera_active = False
             cap.release()
             camera_button.configure(text="Camera", fg_color=("#000000"))
             detect_vertebrae_button.configure(state="disabled", fg_color=("gray75", "gray45"))
+            
+            # Disable zoom slider when camera is stopped
+            zoom_slider.configure(state="disabled")
+            zoom_factor.set(1.0)
+            zoom_label.configure(text="1.0x")
+            
+            # Always disable grayscale switch when camera is stopped
+            grayscale_switch.configure(state="disabled")
 
             if 'capture_button' in globals() and hasattr(capture_button, 'place_forget'):
                 capture_button.place_forget()
@@ -699,39 +762,70 @@ def update_camera_feed():
         if 'cap' in globals() and cap is not None and cap.isOpened():
             cap.release()
         camera_button.configure(text="Camera", fg_color=("#000000"))
+        
+        # Disable zoom slider when camera is stopped
+        zoom_slider.configure(state="disabled")
+        zoom_factor.set(1.0)
+        zoom_label.configure(text="1.0x")
+        
+        # Always disable grayscale switch when camera is stopped
+        grayscale_switch.configure(state="disabled")
+
 
 def capture_frame():
     global cap, camera_active, img, img_tensor
     
-    
     if cap is not None and cap.isOpened():
+        # Get current zoom factor before capture
+        current_zoom = zoom_factor.get()
+        # Get current grayscale setting before capture
+        current_grayscale = grayscale_enabled.get()
+        
         # Set high resolution for capture 
         cap.set(cv.CAP_PROP_FRAME_WIDTH, 1280) #2560 optional
         cap.set(cv.CAP_PROP_FRAME_HEIGHT, 960) # 1920 optional
         
         time.sleep(0.2)
-
         for _ in range(3):  
             cap.read()
         
         ret, frame = cap.read()
         if ret:
-            
+            # Apply zoom to the captured frame if zoom is greater than 1.0
+            if current_zoom > 1.0:
+                # Get frame dimensions
+                h, w = frame.shape[:2]
+                
+                # Calculate new dimensions and offsets for zooming
+                new_h, new_w = int(h / current_zoom), int(w / current_zoom)
+                center_y, center_x = h // 2, w // 2
+                
+                # Calculate the crop region
+                top = center_y - new_h // 2
+                left = center_x - new_w // 2
+                
+                # Ensure crop region is within frame bounds
+                top = max(0, top)
+                left = max(0, left)
+                bottom = min(h, top + new_h)
+                right = min(w, left + new_w)
+                
+                # Crop and resize to original dimensions
+                zoomed_frame = frame[top:bottom, left:right]
+                frame = cv.resize(zoomed_frame, (w, h), interpolation=cv.INTER_LINEAR)
             frame = cv.flip(frame, 1)
-
             # Convert BGR (OpenCV default) to RGB for proper colors
             frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-            img = frame 
-
-            # original_img = frame.copy()
-
-            # gray_img = cv.cvtColor(original_img, cv.COLOR_RGB2GRAY)
             
-            # img = cv.cvtColor(gray_img, cv.COLOR_GRAY2RGB)
+            # Apply grayscale if it was enabled during capture
+            if current_grayscale:
+                gray_frame = cv.cvtColor(frame, cv.COLOR_RGB2GRAY)
+                frame = cv.cvtColor(gray_frame, cv.COLOR_GRAY2RGB)
+            
+            img = frame.copy()
             
             # Convert to PyTorch tensor
-            img_tensor = torch.from_numpy(frame.transpose(2, 0, 1)).float() / 255.0
-
+            img_tensor = torch.from_numpy(img.transpose(2, 0, 1)).float() / 255.0
             # Update detect button state
             update_detect_button_state()
         
@@ -739,12 +833,11 @@ def capture_frame():
                 cobb_angle_button.configure(state="disabled", fg_color=("gray75", "gray45"))
             if keypoints_button:
                 keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
-
             # Display the captured frame
             img_display = Image.fromarray(img)
             display_width = main_frame.winfo_width() - side_panel.winfo_width() - 40
             display_height = main_frame.winfo_height() - 40
-
+            
             # Store as original image for resizing during window changes
             image_label.original_image = img_display
             
@@ -754,27 +847,34 @@ def capture_frame():
             
             image_label.configure(image=ctk_image)
             image_label.image = ctk_image  
-
+            
             if detect_vertebrae_button:
                 detect_vertebrae_button.configure(state="normal", fg_color=("#000000"))
-
+            
+            # Disable grayscale switch after capture as requested
+            grayscale_switch.configure(state="disabled")
+            
+            # Disable zoom slider when image is captured
+            zoom_slider.configure(state="disabled")
+            
             camera_active = False
             cap.release()
             cap = None  
             
             if camera_button:
-                camera_button.configure(text="Camera", fg_color=("#000000"))
-
+                camera_button.configure(text="Camera", fg_color=("#000000"), image=camera_icon_ctk)
             # Hide capture button if it exists
             if 'capture_button' in globals() and capture_button:
                 try:
                     capture_button.place_forget()
                 except AttributeError:
                     pass  
-
         else:
-            
             messagebox.showerror("Error", "Failed to capture high-resolution image")
+
+# The apply_grayscale function is now only relevant during live camera view
+def apply_grayscale():
+    pass
     
 # def capture_frame():
 #     global cap, camera_active, img, img_tensor
@@ -887,201 +987,14 @@ def detect_vertebrae():
         status_label.configure(text="Processing detection results...")
         main_frame.update()
 
-        # Draw bounding boxes with optional labels and confidence scores
-        img_with_boxes = img.copy()
-        
-        # Font settings
-        font = cv.FONT_HERSHEY_SIMPLEX
-        font_scale = 0.8
-        font_thickness = 2
-
-        for idx, (box, conf) in enumerate(
-            zip(vertebra_boxes, vertebra_confidences)
-        ):
-            x1, y1, x2, y2 = map(int, box[:4])
-
-            overlay = img_with_boxes.copy()
-            alpha = 0.2  
-
-            # Draw filled rectangle with transparency
-            cv.rectangle(
-                overlay, (x1, y1), (x2, y2), (80, 200, 255), -1
-            )  # Light blue fill
-            cv.addWeighted(
-                overlay, alpha, img_with_boxes, 1 - alpha, 0, img_with_boxes
-            )
-
-            # Horizontal lines (top and bottom)
-            dash_length = 10
-            gap_length = 5
-            color = (30, 144, 255)  
-            thickness = 2
-
-            # Draw dashed lines for top and bottom borders
-            for x in range(x1, x2, dash_length + gap_length):
-                x_end = min(x + dash_length, x2)
-                cv.line(
-                    img_with_boxes,
-                    (x, y1),
-                    (x_end, y1),
-                    color,
-                    thickness,
-                    cv.LINE_AA,
-                )
-                cv.line(
-                    img_with_boxes,
-                    (x, y2),
-                    (x_end, y2),
-                    color,
-                    thickness,
-                    cv.LINE_AA,
-                )
-
-            # Draw dashed lines for left and right borders
-            for y in range(y1, y2, dash_length + gap_length):
-                y_end = min(y + dash_length, y2)
-                cv.line(
-                    img_with_boxes,
-                    (x1, y),
-                    (x1, y_end),
-                    color,
-                    thickness,
-                    cv.LINE_AA,
-                )
-                cv.line(
-                    img_with_boxes,
-                    (x2, y),
-                    (x2, y_end),
-                    color,
-                    thickness,
-                    cv.LINE_AA,
-                )
-
-            # Add corner highlights for emphasis (solid corners)
-            corner_length = 15
-            # Top-left corner
-            cv.line(
-                img_with_boxes,
-                (x1, y1),
-                (x1 + corner_length, y1),
-                color,
-                thickness + 1,
-                cv.LINE_AA,
-            )
-            cv.line(
-                img_with_boxes,
-                (x1, y1),
-                (x1, y1 + corner_length),
-                color,
-                thickness + 1,
-                cv.LINE_AA,
-            )
-            # Top-right corner
-            cv.line(
-                img_with_boxes,
-                (x2, y1),
-                (x2 - corner_length, y1),
-                color,
-                thickness + 1,
-                cv.LINE_AA,
-            )
-            cv.line(
-                img_with_boxes,
-                (x2, y1),
-                (x2, y1 + corner_length),
-                color,
-                thickness + 1,
-                cv.LINE_AA,
-            )
-            # Bottom-left corner
-            cv.line(
-                img_with_boxes,
-                (x1, y2),
-                (x1 + corner_length, y2),
-                color,
-                thickness + 1,
-                cv.LINE_AA,
-            )
-            cv.line(
-                img_with_boxes,
-                (x1, y2),
-                (x1, y2 - corner_length),
-                color,
-                thickness + 1,
-                cv.LINE_AA,
-            )
-            # Bottom-right corner
-            cv.line(
-                img_with_boxes,
-                (x2, y2),
-                (x2 - corner_length, y2),
-                color,
-                thickness + 1,
-                cv.LINE_AA,
-            )
-            cv.line(
-                img_with_boxes,
-                (x2, y2),
-                (x2, y2 - corner_length),
-                color,
-                thickness + 1,
-                cv.LINE_AA,
-            )
-
-            # Prepare label text based on checkbox selections
-            label_parts = []
-            if show_labels.get():
-                label_parts.append("Vertebra")
-            if show_confidence.get():
-                label_parts.append(f"{conf:.2f}")
-
-            # Only proceed with label if there's something to show
-            if label_parts:
-                label = ": ".join(label_parts)
-
-                # Get text size for background rectangle
-                (text_width, text_height), baseline = cv.getTextSize(
-                    label, font, font_scale, font_thickness
-                )
-
-                # Draw background rectangle for text
-                cv.rectangle(
-                    img_with_boxes,
-                    (x1, y1 - text_height - 10),
-                    (x1 + text_width + 10, y1),
-                    (0, 76, 153),
-                    -1,
-                )  # Filled rectangle
-
-                # Draw text with black color for better visibility
-                cv.putText(
-                    img_with_boxes,
-                    label,
-                    (x1 + 5, y1 - 5),
-                    font,
-                    font_scale,
-                    (0, 0, 0),  # Black text
-                    font_thickness,
-                )
-
         # Clean up the status label before updating the display
         status_frame.destroy()
         main_frame.update()
-
-        # Update display
-        img_display = Image.fromarray(img_with_boxes)
-        display_width = (
-            main_frame.winfo_width() - side_panel.winfo_width() - 40
-        )
-        display_height = main_frame.winfo_height() - 40
-
-        image_label.original_image = img_display
-        resized_image = resize_image_for_display(
-            img_display, display_width, display_height
-        )
-        ctk_image = CTkImage(light_image=resized_image, size=(display_width, display_height))
-        image_label.configure(image=ctk_image)
-        image_label.image = ctk_image
+        
+        # Update the display with detected boxes
+        update_vertebrae_display()
+        
+        # Enable keypoints button
         keypoints_button.configure(
             state="normal", fg_color=("#000000")
         )
@@ -1092,6 +1005,204 @@ def detect_vertebrae():
             status_frame.destroy()
             main_frame.update()
         messagebox.showerror("Error", f"Failed to detect vertebrae: {str(e)}")
+
+def update_vertebrae_display():
+    global img, vertebra_boxes, vertebra_confidences, show_labels, show_confidence
+    
+    if img is None or vertebra_boxes is None:
+        return
+    
+    # Start with a clean copy of the original image
+    img_with_boxes = img.copy()
+    
+    # Font settings
+    font = cv.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.8
+    font_thickness = 2
+
+    for idx, (box, conf) in enumerate(
+        zip(vertebra_boxes, vertebra_confidences)
+    ):
+        x1, y1, x2, y2 = map(int, box[:4])
+
+        overlay = img_with_boxes.copy()
+        alpha = 0.2  
+
+        # Draw filled rectangle with transparency
+        cv.rectangle(
+            overlay, (x1, y1), (x2, y2), (80, 200, 255), -1
+        )  # Light blue fill
+        cv.addWeighted(
+            overlay, alpha, img_with_boxes, 1 - alpha, 0, img_with_boxes
+        )
+
+        # Horizontal lines (top and bottom)
+        dash_length = 10
+        gap_length = 5
+        color = (30, 144, 255)  
+        thickness = 2
+
+        # Draw dashed lines for top and bottom borders
+        for x in range(x1, x2, dash_length + gap_length):
+            x_end = min(x + dash_length, x2)
+            cv.line(
+                img_with_boxes,
+                (x, y1),
+                (x_end, y1),
+                color,
+                thickness,
+                cv.LINE_AA,
+            )
+            cv.line(
+                img_with_boxes,
+                (x, y2),
+                (x_end, y2),
+                color,
+                thickness,
+                cv.LINE_AA,
+            )
+
+        # Draw dashed lines for left and right borders
+        for y in range(y1, y2, dash_length + gap_length):
+            y_end = min(y + dash_length, y2)
+            cv.line(
+                img_with_boxes,
+                (x1, y),
+                (x1, y_end),
+                color,
+                thickness,
+                cv.LINE_AA,
+            )
+            cv.line(
+                img_with_boxes,
+                (x2, y),
+                (x2, y_end),
+                color,
+                thickness,
+                cv.LINE_AA,
+            )
+
+        # Add corner highlights for emphasis (solid corners)
+        corner_length = 15
+        # Top-left corner
+        cv.line(
+            img_with_boxes,
+            (x1, y1),
+            (x1 + corner_length, y1),
+            color,
+            thickness + 1,
+            cv.LINE_AA,
+        )
+        cv.line(
+            img_with_boxes,
+            (x1, y1),
+            (x1, y1 + corner_length),
+            color,
+            thickness + 1,
+            cv.LINE_AA,
+        )
+        # Top-right corner
+        cv.line(
+            img_with_boxes,
+            (x2, y1),
+            (x2 - corner_length, y1),
+            color,
+            thickness + 1,
+            cv.LINE_AA,
+        )
+        cv.line(
+            img_with_boxes,
+            (x2, y1),
+            (x2, y1 + corner_length),
+            color,
+            thickness + 1,
+            cv.LINE_AA,
+        )
+        # Bottom-left corner
+        cv.line(
+            img_with_boxes,
+            (x1, y2),
+            (x1 + corner_length, y2),
+            color,
+            thickness + 1,
+            cv.LINE_AA,
+        )
+        cv.line(
+            img_with_boxes,
+            (x1, y2),
+            (x1, y2 - corner_length),
+            color,
+            thickness + 1,
+            cv.LINE_AA,
+        )
+        # Bottom-right corner
+        cv.line(
+            img_with_boxes,
+            (x2, y2),
+            (x2 - corner_length, y2),
+            color,
+            thickness + 1,
+            cv.LINE_AA,
+        )
+        cv.line(
+            img_with_boxes,
+            (x2, y2),
+            (x2, y2 - corner_length),
+            color,
+            thickness + 1,
+            cv.LINE_AA,
+        )
+
+        # Prepare label text based on checkbox selections
+        label_parts = []
+        if show_labels.get():
+            label_parts.append("Vertebra")
+        if show_confidence.get():
+            label_parts.append(f"{conf:.2f}")
+
+        # Only proceed with label if there's something to show
+        if label_parts:
+            label = ": ".join(label_parts)
+
+            # Get text size for background rectangle
+            (text_width, text_height), baseline = cv.getTextSize(
+                label, font, font_scale, font_thickness
+            )
+
+            # Draw background rectangle for text
+            cv.rectangle(
+                img_with_boxes,
+                (x1, y1 - text_height - 10),
+                (x1 + text_width + 10, y1),
+                (0, 76, 153),
+                -1,
+            )  # Filled rectangle
+
+            # Draw text with black color for better visibility
+            cv.putText(
+                img_with_boxes,
+                label,
+                (x1 + 5, y1 - 5),
+                font,
+                font_scale,
+                (0, 0, 0),  # Black text
+                font_thickness,
+            )
+
+    # Update display
+    img_display = Image.fromarray(img_with_boxes)
+    display_width = (
+        main_frame.winfo_width() - side_panel.winfo_width() - 40
+    )
+    display_height = main_frame.winfo_height() - 40
+
+    image_label.original_image = img_display
+    resized_image = resize_image_for_display(
+        img_display, display_width, display_height
+    )
+    ctk_image = CTkImage(light_image=resized_image, size=(display_width, display_height))
+    image_label.configure(image=ctk_image)
+    image_label.image = ctk_image
 
 
 def show_keypoints():
@@ -1610,15 +1721,17 @@ initialize_models()
 def on_escape(event):
     if root.state() == "zoomed":
         root.state("normal")
-        root.geometry("1171x661") 
     else:
         root.state("zoomed")
 
 root = ctk.CTk()
 root.title("Cobb Angle Calculation")
-root.geometry("1171x661")
+root.geometry("1920x1080")
 root.grid_rowconfigure(0, weight=1)
 root.grid_columnconfigure(0, weight=1)
+
+# Bind the Escape key to the on_escape function
+root.bind("<Escape>", on_escape)
 
 # Main frame with grid
 main_frame = ctk.CTkFrame(root)
@@ -1842,7 +1955,7 @@ cobb_angle_button = ctk.CTkButton(
     width=260,
     state="disabled", 
     fg_color=("gray75", "gray45"),  
-    height=40
+    height=60
 )
 cobb_angle_button.pack(side="bottom", pady=(5, 20), padx=20)
 
@@ -1860,7 +1973,7 @@ keypoints_button = ctk.CTkButton(
     fg_color=("gray75", "gray45"),  
     width=button_width,
     anchor="center",  
-    height=40
+    height=60
 )
 keypoints_button.pack(side="bottom", pady=(5, 5), padx=20)
 
@@ -1877,7 +1990,7 @@ detect_vertebrae_button = ctk.CTkButton(
     fg_color=("gray75", "gray45"),
     corner_radius=10,
     width=button_width,
-    height=40
+    height=60
 )
 detect_vertebrae_button.pack(side="bottom", pady=(5, 5), padx=20)
 
@@ -1896,7 +2009,7 @@ camera_button = ctk.CTkButton(
     command=toggle_camera,
     corner_radius=10,
     width=115,  
-    height=40,
+    height=60,
     anchor="center"
 )
 camera_button.pack(side="left", padx=(0, 10))  
@@ -1913,7 +2026,7 @@ open_button = ctk.CTkButton(
     command=open_file,
     corner_radius=10,
     width=150,  
-    height=40,
+    height=60,
     anchor="center"
 )
 open_button.pack(side="left")
@@ -1925,20 +2038,20 @@ detection_label = ctk.CTkLabel(
     side_panel, text="Detection Method:", anchor="w",
     text_color=("gray50", "gray70"), font=("Arial", 12)
 )
-detection_label.pack(side="top", pady=(1, 5), padx=20)
+detection_label.pack(side="top", pady=(10, 10), padx=20)
 
-# Create a frame to hold the radio buttons
+# Create a frame to hold the radio buttons vertically
 radio_frame = ctk.CTkFrame(side_panel, fg_color="transparent")
-radio_frame.pack(side="top", pady=5, padx=20, fill="x")
+radio_frame.pack(side="top", pady=10, padx=20, fill="x")
 
-# Add the radio buttons to the frame side by side
+# Add the radio buttons to the frame vertically
 model1_radio = ctk.CTkRadioButton(
     radio_frame,
     text="Model 1",
     variable=detection_var,
     value="Model1",
 )
-model1_radio.pack(side="left", padx=(0, 10))
+model1_radio.pack(side="top", pady=(0, 20), anchor="w")  # Changed to "top" for vertical stacking
 
 model2_radio = ctk.CTkRadioButton(
     radio_frame,
@@ -1946,13 +2059,13 @@ model2_radio = ctk.CTkRadioButton(
     variable=detection_var,
     value="YOLO",
 )
-model2_radio.pack(side="left")
+model2_radio.pack(side="top", anchor="w")  # Changed to "top" for vertical stacking
 
 display_options_label = ctk.CTkLabel(
     side_panel, text="Display Options:", anchor="w",
     text_color=("gray50", "gray70"), font=("Arial", 12)
 )
-display_options_label.pack(side="top", pady=(1, 5), padx=20)
+display_options_label.pack(side="top", pady=(10, 10), padx=20)
 
 # Create BooleanVar for checkboxes
 show_labels = ctk.BooleanVar(value=False)
@@ -1963,18 +2076,61 @@ labels_switch = ctk.CTkSwitch(
     text="Show Labels",
     variable=show_labels,
     width=button_width // 1,
-    command=lambda: detect_vertebrae() if vertebra_boxes is not None else None,
+    command=lambda: update_vertebrae_display() if vertebra_boxes is not None else None,
 )
-labels_switch.pack(side="top", pady=5, padx=20)
+labels_switch.pack(side="top", pady=10, padx=20)
 
 confidence_switch = ctk.CTkSwitch(
     side_panel,
     text="Show Confidence",
     variable=show_confidence,
     width=button_width // 1,
-    command=lambda: detect_vertebrae() if vertebra_boxes is not None else None,
+    command=lambda: update_vertebrae_display() if vertebra_boxes is not None else None,
 )
-confidence_switch.pack(side="top", pady=5, padx=20)
+confidence_switch.pack(side="top", pady=10, padx=20)
+
+filter_option = ctk.CTkLabel(
+    side_panel, text="Camera Options:", anchor="w",
+    text_color=("gray50", "gray70"), font=("Arial", 12)
+)
+filter_option.pack(side="top", pady=(10, 10), padx=20)
+# Add this with your other global variable declarations
+grayscale_enabled = ctk.BooleanVar(value=False)
+
+# Add this switch button after your other switches
+grayscale_switch = ctk.CTkSwitch(
+    side_panel,
+    text="Grayscale Mode",
+    variable=grayscale_enabled,
+    width=button_width // 1,
+    command=lambda: apply_grayscale() if img is not None else None,
+    state="disabled"  # Start disabled
+)
+grayscale_switch.pack(side="top", pady=10, padx=20)
+
+# Define a global variable for zoom factor
+zoom_factor = ctk.DoubleVar(value=1.0)
+
+# Create the zoom slider
+zoom_slider = ctk.CTkSlider(
+    side_panel,
+    from_=1.0,
+    to=3.0,
+    number_of_steps=20,
+    variable=zoom_factor,
+    width=button_width // 1,
+    command=lambda value: update_zoom(),
+    state="disabled"  # Start disabled
+)
+zoom_slider.pack(side="top", pady=10, padx=20)
+
+# Add a label for the zoom slider
+zoom_label = ctk.CTkLabel(
+    side_panel,
+    text="1.0x",
+    font=("Helvetica", 10)
+)
+zoom_label.pack(side="top", pady=(0,1), padx=20)
 
 spacer_bottom = ctk.CTkLabel(side_panel, text="", height=50)
 spacer_bottom.pack(side="bottom")
