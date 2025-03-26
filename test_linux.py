@@ -597,6 +597,14 @@ def toggle_camera():
             zoom_factor.set(1.0)
             zoom_label.configure(text="1.0x")
             
+            # Reset keypoints and outputs
+            keypoints = None
+            outputs = None
+            
+            # Disable the show keypoints and cobb angle buttons
+            keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
+            cobb_angle_button.configure(state="disabled", fg_color=("gray75", "gray45"))
+            
             no_camera_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/icons8-no-camera-48.png"
             no_camera_pil = Image.open(no_camera_path)
             no_camera_icon_ctk = CTkImage(light_image=no_camera_pil, dark_image=no_camera_pil, size=(24, 24))
@@ -700,33 +708,46 @@ def update_camera_feed():
                 gray_frame = cv.cvtColor(frame, cv.COLOR_RGB2GRAY)
                 frame = cv.cvtColor(gray_frame, cv.COLOR_GRAY2RGB)
             
-            img = frame
-            
-            img_tensor = torch.from_numpy(frame.transpose(2, 0, 1)).float() / 255.0
-            
-            frame_display = Image.fromarray(frame)
-            
-            # Use smaller display dimensions for better performance on Raspberry Pi
-            display_width = min(810, main_frame.winfo_width() - side_panel.winfo_width() - 40)
-            display_height = min(970, main_frame.winfo_height() - 40)
-            
-            img_width, img_height = frame_display.size
-            target_ratio = display_width / display_height
-            img_ratio = img_width / img_height
+            # Add frame overlay
+            height, width = frame.shape[:2]
+            frame_w = 300  # Fixed width for frame
+            frame_h = height
+            frame_x = (width - frame_w) // 2
+            frame_y = 0
 
-            cobb_angle_button.configure(state="disabled", fg_color=("gray75", "gray45"))
-            keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
+            frame_overlay = frame.copy()
             
-            if img_ratio > target_ratio:
-                new_width = int(img_height * target_ratio)
-                left = (img_width - new_width) // 2
-                frame_display = frame_display.crop((left, 0, left + new_width, img_height))
-            else:
-                new_height = int(img_width / target_ratio)
-                top = (img_height - new_height) // 2
-                frame_display = frame_display.crop((0, top, img_width, top + new_height))
+            # Create a very subtle medical-style frame overlay
+            overlay = frame_overlay.copy()
+            
+            # Add extremely subtle vertical guide lines
+            guide_line_color = (180, 200, 255)  # Very light medical blue
+            dash_length = 8
+            gap_length = 20
+            
+            # Draw minimal dashed vertical lines with very low opacity
+            for y in range(0, height, dash_length + gap_length):
+                # Left guide line
+                cv.line(overlay, (frame_x, y), (frame_x, min(y + dash_length, height)), guide_line_color, 1)
+                # Right guide line
+                cv.line(overlay, (frame_x + frame_w, y), (frame_x + frame_w, min(y + dash_length, height)), guide_line_color, 1)
+            
+            # Apply very subtle overlay
+            cv.addWeighted(overlay, 0.15, frame_overlay, 0.85, 0, frame_overlay)
+            
+            # Use frame overlay for further processing
+            img = frame_overlay
+            
+            img_tensor = torch.from_numpy(frame_overlay.transpose(2, 0, 1)).float() / 255.0
+            
+            frame_display = Image.fromarray(frame_overlay)
+            
+            # Use full window dimensions for display
+            display_width = main_frame.winfo_width() - side_panel.winfo_width()
+            display_height = main_frame.winfo_height()
+            
+            resized_image = resize_image_for_display(frame_display, display_width, display_height)
 
-            resized_image = frame_display.resize((display_width, display_height), Image.BILINEAR)
             
             ctk_image = CTkImage(light_image=resized_image, size=(display_width, display_height))
             image_label.configure(image=ctk_image)
@@ -745,11 +766,6 @@ def update_camera_feed():
             camera_button.configure(text="Camera", fg_color=("#000000"))
             detect_vertebrae_button.configure(state="disabled", fg_color=("gray75", "gray45"))
             
-            # Disable zoom slider when camera is stopped
-            zoom_slider.configure(state="disabled")
-            zoom_factor.set(1.0)
-            zoom_label.configure(text="1.0x")
-            
             # Always disable grayscale switch when camera is stopped
             grayscale_switch.configure(state="disabled")
 
@@ -763,11 +779,6 @@ def update_camera_feed():
             cap.release()
         camera_button.configure(text="Camera", fg_color=("#000000"))
         
-        # Disable zoom slider when camera is stopped
-        zoom_slider.configure(state="disabled")
-        zoom_factor.set(1.0)
-        zoom_label.configure(text="1.0x")
-        
         # Always disable grayscale switch when camera is stopped
         grayscale_switch.configure(state="disabled")
 
@@ -780,10 +791,6 @@ def capture_frame():
         current_zoom = zoom_factor.get()
         # Get current grayscale setting before capture
         current_grayscale = grayscale_enabled.get()
-        
-        # Set high resolution for capture 
-        cap.set(cv.CAP_PROP_FRAME_WIDTH, 1280) #2560 optional
-        cap.set(cv.CAP_PROP_FRAME_HEIGHT, 960) # 1920 optional
         
         time.sleep(0.2)
         for _ in range(3):  
@@ -813,6 +820,7 @@ def capture_frame():
                 # Crop and resize to original dimensions
                 zoomed_frame = frame[top:bottom, left:right]
                 frame = cv.resize(zoomed_frame, (w, h), interpolation=cv.INTER_LINEAR)
+            
             frame = cv.flip(frame, 1)
             # Convert BGR (OpenCV default) to RGB for proper colors
             frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
@@ -822,10 +830,38 @@ def capture_frame():
                 gray_frame = cv.cvtColor(frame, cv.COLOR_RGB2GRAY)
                 frame = cv.cvtColor(gray_frame, cv.COLOR_GRAY2RGB)
             
-            img = frame.copy()
+            # Add frame overlay
+            height, width = frame.shape[:2]
+            frame_w = 300  # Fixed width for frame
+            frame_h = height
+            frame_x = (width - frame_w) // 2
+            frame_y = 0
+
+            frame_overlay = frame.copy()
+            
+            # Create a very subtle medical-style frame overlay
+            overlay = frame_overlay.copy()
+            
+            # Add extremely subtle vertical guide lines
+            guide_line_color = (180, 200, 255)  # Very light medical blue
+            dash_length = 8
+            gap_length = 20
+            
+            # Draw minimal dashed vertical lines with very low opacity
+            for y in range(0, height, dash_length + gap_length):
+                # Left guide line
+                cv.line(overlay, (frame_x, y), (frame_x, min(y + dash_length, height)), guide_line_color, 1)
+                # Right guide line
+                cv.line(overlay, (frame_x + frame_w, y), (frame_x + frame_w, min(y + dash_length, height)), guide_line_color, 1)
+            
+            # Apply very subtle overlay
+            cv.addWeighted(overlay, 0.15, frame_overlay, 0.85, 0, frame_overlay)
+            
+            img = frame_overlay.copy()
             
             # Convert to PyTorch tensor
             img_tensor = torch.from_numpy(img.transpose(2, 0, 1)).float() / 255.0
+            
             # Update detect button state
             update_detect_button_state()
         
@@ -833,10 +869,11 @@ def capture_frame():
                 cobb_angle_button.configure(state="disabled", fg_color=("gray75", "gray45"))
             if keypoints_button:
                 keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
+            
             # Display the captured frame
             img_display = Image.fromarray(img)
-            display_width = main_frame.winfo_width() - side_panel.winfo_width() - 40
-            display_height = main_frame.winfo_height() - 40
+            display_width = main_frame.winfo_width() - side_panel.winfo_width()
+            display_height = main_frame.winfo_height()
             
             # Store as original image for resizing during window changes
             image_label.original_image = img_display
@@ -958,6 +995,11 @@ def detect_vertebrae():
         # Get detection method
         method = detection_var.get()
 
+        # Calculate frame boundaries
+        height, width = img.shape[:2]
+        frame_w = 300  # Fixed width for frame (must match capture_frame())
+        frame_x = (width - frame_w) // 2
+
         # Update status with minimal UI updates
         status_label.configure(text="Running detection model...")
         main_frame.update()
@@ -970,18 +1012,46 @@ def detect_vertebrae():
             )
             results = bbox_model(img_rgb)
             boxes = results[0].boxes
-            vertebra_boxes = boxes.xyxy.cpu().numpy()
-            vertebra_confidences = boxes.conf.cpu().numpy()
+            
+            # Filter boxes to only include those within the frame
+            frame_boxes = []
+            frame_confidences = []
+            for box, conf in zip(boxes.xyxy.cpu().numpy(), boxes.conf.cpu().numpy()):
+                # Check if box's center is within the frame
+                box_center_x = (box[0] + box[2]) / 2
+                if frame_x <= box_center_x <= frame_x + frame_w:
+                    frame_boxes.append(box)
+                    frame_confidences.append(conf)
+            
+            vertebra_boxes = np.array(frame_boxes)
+            vertebra_confidences = np.array(frame_confidences)
         else:  # Model1
             img_tensor = F.to_tensor(img)
             with torch.no_grad():
                 output = model([img_tensor])[0]
+            
+            # Apply filter to get only high-scoring detections
             scores = output["scores"].detach().cpu().numpy()
-            high_scores_idxs = np.where(scores > 0.5)[0].tolist()
-            vertebra_boxes = (
-                output["boxes"][high_scores_idxs].detach().cpu().numpy()
-            )
-            vertebra_confidences = scores[high_scores_idxs]
+            
+            # Additional filter for frame-only detections
+            high_scores_idxs = []
+            filtered_boxes = []
+            filtered_scores = []
+            
+            for idx, (box, score) in enumerate(zip(output["boxes"], output["scores"])):
+                if score > 0.5:
+                    # Convert box to numpy and get center x
+                    np_box = box.detach().cpu().numpy()
+                    box_center_x = (np_box[0] + np_box[2]) / 2
+                    
+                    # Check if box center is within the frame
+                    if frame_x <= box_center_x <= frame_x + frame_w:
+                        high_scores_idxs.append(idx)
+                        filtered_boxes.append(np_box)
+                        filtered_scores.append(score.detach().cpu().numpy())
+            
+            vertebra_boxes = np.array(filtered_boxes)
+            vertebra_confidences = np.array(filtered_scores)
         
         # Update status with minimal UI updates
         status_label.configure(text="Processing detection results...")
