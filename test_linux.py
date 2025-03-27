@@ -63,19 +63,19 @@ def get_kprcnn_model(path):
         return None
 
 
-# def initialize_models():
-#     global model, bbox_model, vertebra_boxes, vertebra_confidences
-#     bbox_path = "/home/raspi/Desktop/models/model2.pt"
-#     detector_path = "/home/raspi/Desktop/models/model1.pt"
-#     model = get_kprcnn_model(detector_path)
-#     bbox_model = YOLO(bbox_path)
-
 def initialize_models():
     global model, bbox_model, vertebra_boxes, vertebra_confidences
-    bbox_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model2.pt"
-    detector_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model1.pt"
+    bbox_path = "/home/raspi/Desktop/models/model2.pt"
+    detector_path = "/home/raspi/Desktop/models/model1.pt"
     model = get_kprcnn_model(detector_path)
     bbox_model = YOLO(bbox_path)
+
+# def initialize_models():
+#     global model, bbox_model, vertebra_boxes, vertebra_confidences
+#     bbox_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model2.pt"
+#     detector_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model1.pt"
+#     model = get_kprcnn_model(detector_path)
+#     bbox_model = YOLO(bbox_path)
 
 # Helper function to load and process an image
 def open_image_path(path):
@@ -546,7 +546,7 @@ def update_image_size(event=None):
 def create_camera_buttons():
     global capture_button
     try:
-        camera_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-aperture-48.png"
+        camera_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/icons8-aperture-48.png"
         pil_image = Image.open(camera_icon_path)
         camera_icon_ctk = CTkImage(light_image=pil_image, dark_image=pil_image, size=(32, 32))
         
@@ -616,7 +616,7 @@ def toggle_camera():
             keypoints_button.configure(state="disabled", fg_color=("gray75", "gray45"))
             cobb_angle_button.configure(state="disabled", fg_color=("gray75", "gray45"))
             
-            no_camera_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\icons8-no-camera-48.png"
+            no_camera_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/icons8-no-camera-48.png"
             no_camera_pil = Image.open(no_camera_path)
             no_camera_icon_ctk = CTkImage(light_image=no_camera_pil, dark_image=no_camera_pil, size=(24, 24))
             
@@ -1782,7 +1782,7 @@ def add_save_button():
         save_cobb_button = None
 
     if not camera_active and img_with_cobb is not None:
-        save_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\save.png"
+        save_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/save.png"
         pil_image = Image.open(save_icon_path)
         save_icon = CTkImage(light_image=pil_image, size=(32, 32))
 
@@ -1874,7 +1874,7 @@ main_curve_frame.pack(side="left", padx=(0, 10))
 main_curve_frame.pack_propagate(False)  
 
 # Add the icon to the main curve frame
-main_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\angle-90.png"
+main_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/angle-90.png"
 main_icon_image = Image.open(main_icon_path)
 main_icon_ctk = CTkImage(light_image=main_icon_image, dark_image=main_icon_image, size=(24, 24))
 main_icon_label = ctk.CTkLabel(
@@ -1916,7 +1916,7 @@ secondary_curve_frame.pack(side="right", padx=(10, 0))
 secondary_curve_frame.pack_propagate(False)  
 
 # Add the icon to the secondary curve frame
-secondary_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\angle.png"
+secondary_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/angle.png"
 secondary_icon_image = Image.open(secondary_icon_path)
 secondary_icon_ctk = CTkImage(light_image=secondary_icon_image, dark_image=secondary_icon_image, size=(24, 24))
 secondary_icon_label = ctk.CTkLabel(
@@ -1964,7 +1964,7 @@ curve_type_frame.pack(side="left", padx=(0, 10))
 curve_type_frame.pack_propagate(False)  
 
 # Add the icon to the curve type frame
-curve_type_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\scoliosis.png"
+curve_type_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/scoliosis.png"
 curve_type_icon_image = Image.open(curve_type_icon_path)
 curve_type_icon_ctk = CTkImage(light_image=curve_type_icon_image, dark_image=curve_type_icon_image, size=(24, 24))
 curve_type_icon_label = ctk.CTkLabel(
@@ -2005,7 +2005,7 @@ severity_frame.pack(side="right", padx=(10, 0))
 severity_frame.pack_propagate(False)  
 
 # Add the icon to the severity frame
-severity_icon_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\rating.png"
+severity_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/rating.png"
 severity_icon_image = Image.open(severity_icon_path)
 severity_icon_ctk = CTkImage(light_image=severity_icon_image, dark_image=severity_icon_image, size=(24, 24))
 severity_icon_label = ctk.CTkLabel(
@@ -2033,7 +2033,7 @@ severity_subtitle_label = ctk.CTkLabel(
 severity_subtitle_label.pack(pady=(0, 3))
 
 #Process buttons
-measure_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\ruler.png"
+measure_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/ruler.png"
 measure_icon_image = Image.open(measure_path)
 measure_icon_ctk = CTkImage(light_image=measure_icon_image, dark_image=measure_icon_image, size=(24, 24))
 cobb_angle_button = ctk.CTkButton(
@@ -2050,7 +2050,7 @@ cobb_angle_button = ctk.CTkButton(
 )
 cobb_angle_button.pack(side="bottom", pady=(5, 20), padx=20)
 
-target_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\points.png"
+target_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/points.png"
 target_icon_image = Image.open(target_path)
 target_icon_ctk = CTkImage(light_image=target_icon_image, dark_image=target_icon_image, size=(24, 24))
 keypoints_button = ctk.CTkButton(
@@ -2068,7 +2068,7 @@ keypoints_button = ctk.CTkButton(
 )
 keypoints_button.pack(side="bottom", pady=(5, 5), padx=20)
 
-bone_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\bounding-box.png"
+bone_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/bounding-box.png"
 bone_icon_image = Image.open(bone_path)
 bone_icon_ctk = CTkImage(light_image=bone_icon_image, dark_image=bone_icon_image, size=(24, 24))
 detect_vertebrae_button = ctk.CTkButton(
@@ -2089,7 +2089,7 @@ detect_vertebrae_button.pack(side="bottom", pady=(5, 5), padx=20)
 button_frame = ctk.CTkFrame(side_panel, fg_color="transparent") 
 button_frame.pack(side="bottom", pady=(5, 5), padx=20)
 
-camera_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\camera.png"
+camera_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/camera.png"
 camera_icon_image = Image.open(camera_path)
 camera_icon_ctk = CTkImage(light_image=camera_icon_image, dark_image=camera_icon_image, size=(24, 24))
 camera_button = ctk.CTkButton(
@@ -2106,7 +2106,7 @@ camera_button = ctk.CTkButton(
 camera_button.pack(side="left", padx=(0, 10))  
 camera_button.image = camera_icon_ctk 
 
-image_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\cobbcal\\picture.png"
+image_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/picture.png"
 image_icon_image = Image.open(image_path)
 image_icon_ctk = CTkImage(light_image=image_icon_image, dark_image=image_icon_image, size=(24, 24))
 open_button = ctk.CTkButton(
