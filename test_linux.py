@@ -581,7 +581,7 @@ def toggle_camera():
             
             # Set lower resolution for better performance on Raspberry Pi
             cap.set(cv.CAP_PROP_FRAME_WIDTH, 1280) #1280,640 optional
-            cap.set(cv.CAP_PROP_FRAME_HEIGHT, 640) #960,480 optional    
+            cap.set(cv.CAP_PROP_FRAME_HEIGHT, 960) #960,480 optional    
             # Set lower FPS for better performance
             cap.set(cv.CAP_PROP_FPS, 15)
             # Disable Auto White Balance (AWB)
