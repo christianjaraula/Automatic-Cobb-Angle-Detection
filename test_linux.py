@@ -73,7 +73,7 @@ def initialize_models():
 # def initialize_models():
 #     global model, bbox_model, vertebra_boxes, vertebra_confidences
 #     bbox_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model2.pt"
-#     detector_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model1.pt"
+#     detector_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\testmodel.pt"
 #     model = get_kprcnn_model(detector_path)
 #     bbox_model = YOLO(bbox_path)
 
@@ -581,7 +581,7 @@ def toggle_camera():
             
             # Set lower resolution for better performance on Raspberry Pi
             cap.set(cv.CAP_PROP_FRAME_WIDTH, 1280) #1280,640 optional
-            cap.set(cv.CAP_PROP_FRAME_HEIGHT, 640) #960,480 optional    
+            cap.set(cv.CAP_PROP_FRAME_HEIGHT, 960) #960,480 optional    
             # Set lower FPS for better performance
             cap.set(cv.CAP_PROP_FPS, 15)
             # Disable Auto White Balance (AWB)
@@ -1384,10 +1384,45 @@ def show_keypoints():
                 # Only keep keypoint set if all 4 points are near boxes
                 if points_in_boxes == 4:
                     filtered_keypoints.append(keypoint_set)
+                    
+                    # Convert keypoints to integer points for drawing
+                    points = [(int(point[0]), int(point[1])) for point in keypoint_set]
+                    
+                    # Draw connecting lines between keypoints to form a quadrilateral
+                    # Medical visualization colors: using a professional blue color scheme
+                    box_color = (209, 134, 0)  # Medical blue (BGR format)
+                    box_thickness = max(2, int(3 * resolution_factor))
+                    
+                    # First, find center point
+                    center_x = sum(p[0] for p in points) / len(points)
+                    center_y = sum(p[1] for p in points) / len(points)
+                    
+                    # Sort points by their angle from center
+                    sorted_points = sorted(points, 
+                                          key=lambda p: math.atan2(p[1] - center_y, p[0] - center_x))
+                    
+                    # Draw box outline by connecting the ordered points
+                    for i in range(len(sorted_points)):
+                        cv.line(img_with_detections, 
+                                sorted_points[i], 
+                                sorted_points[(i + 1) % len(sorted_points)],
+                                box_color, 
+                                box_thickness, 
+                                cv.LINE_AA)
+                    
+                    # Add a semi-transparent overlay to highlight the region
+                    overlay = img_with_detections.copy()
+                    pts = np.array(sorted_points, np.int32)
+                    pts = pts.reshape((-1, 1, 2))
+                    cv.fillPoly(overlay, [pts], (209, 134, 0, 128))  # Medical blue with alpha
+                    
+                    # Apply the overlay with transparency
+                    alpha = 0.15  # Transparency factor
+                    cv.addWeighted(overlay, alpha, img_with_detections, 1 - alpha, 0, img_with_detections)
 
                     # Create enhanced visualization for each keypoint with fixed size relative to resolution
-                    for point in keypoint_set:
-                        x, y = int(point[0]), int(point[1])
+                    for point in points:
+                        x, y = point
 
                         # Outer ring - medical blue
                         cv.circle(
@@ -1444,6 +1479,21 @@ def show_keypoints():
             cobb_angle_button.configure(
                 state="normal", fg_color=("#000000")
             )
+            
+            # Add information text about the visualization
+            info_text = f"Detected {len(filtered_keypoints)} vertebra region(s)"
+            info_label = ctk.CTkLabel(
+                image_label,
+                text=info_text,
+                fg_color="#1A1A1A",
+                corner_radius=8,
+                text_color="white",
+                padx=10,
+                pady=5
+            )
+            info_label.place(relx=0.5, rely=0.05, anchor="n")
+            # Auto-hide the info label after 5 seconds
+            main_frame.after(5000, info_label.destroy)
 
         else:
             messagebox.showerror(
@@ -1540,9 +1590,8 @@ def apply_cobb_angle():
         resolution_factor = min(height, width) / base_resolution
 
         # Define fixed sizes for visual elements that will be scaled
-        circle_radius_outer = int(12 * resolution_factor)
-        circle_radius_middle = int(6 * resolution_factor)
-        circle_radius_inner = int(3 * resolution_factor)
+        dot_radius = int(6 * resolution_factor)  # Size for each midpoint dot
+        connector_thickness = max(2, int(3 * resolution_factor))  # Thickness for connecting line
         line_thickness_base = max(2, int(3 * resolution_factor))
 
         def extend_line(p1, p2, height, width):
@@ -1641,38 +1690,58 @@ def apply_cobb_angle():
                 cv.LINE_AA,
             )
 
-        # Draw circles at midpoints instead of crosses
+        # Draw two dots with connecting line for each vertebra midpoint
         for mp_line in mid_points:
-            mid_x = int((mp_line[0][0] + mp_line[1][0]) / 2)
-            mid_y = int((mp_line[0][1] + mp_line[1][1]) / 2)
-
-            # Outer glow effect
-            cv.circle(
+            # Extract the two endpoint coordinates
+            p1 = (int(mp_line[0][0]), int(mp_line[0][1]))
+            p2 = (int(mp_line[1][0]), int(mp_line[1][1]))
+            
+            # Medical blue color scheme
+            line_color = (0, 120, 215)  # Bright blue for the connecting line
+            dot_color = (0, 175, 255)   # Lighter blue for dots
+            dot_fill = (255, 255, 255)  # White fill for dots
+            
+            # Draw connecting line between the two midpoints
+            cv.line(
                 img_with_cobb,
-                (mid_x, mid_y),
-                circle_radius_outer,
-                (0, 175, 255),
-                max(1, int(2 * resolution_factor)),
-                cv.LINE_AA,
+                p1,
+                p2,
+                line_color,
+                connector_thickness,
+                cv.LINE_AA
             )
-            # Inner filled circle
-            cv.circle(
-                img_with_cobb,
-                (mid_x, mid_y),
-                circle_radius_middle,
-                (255, 255, 255),
-                -1,
-                cv.LINE_AA,
-            )
-            # Center dot
-            cv.circle(
-                img_with_cobb,
-                (mid_x, mid_y),
-                circle_radius_inner,
-                (0, 120, 215),
-                -1,
-                cv.LINE_AA,
-            )
+            
+            # Draw dots at each endpoint of the midpoint line
+            for point in [p1, p2]:
+                # Outer ring with glow effect
+                cv.circle(
+                    img_with_cobb,
+                    point,
+                    dot_radius + 2,
+                    dot_color,
+                    2,
+                    cv.LINE_AA
+                )
+                
+                # Inner filled circle
+                cv.circle(
+                    img_with_cobb,
+                    point,
+                    dot_radius,
+                    dot_fill,
+                    -1,
+                    cv.LINE_AA
+                )
+                
+                # Center accent
+                cv.circle(
+                    img_with_cobb,
+                    point,
+                    max(1, int(dot_radius * 0.4)),
+                    line_color,
+                    -1,
+                    cv.LINE_AA
+                )
 
         # Draw lines and labels for the two largest angles
         for angle_info in sorted_angles[:2]:
