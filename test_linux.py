@@ -1053,7 +1053,7 @@ def detect_vertebrae():
             filtered_scores = []
             
             for idx, (box, score) in enumerate(zip(output["boxes"], output["scores"])):
-                if score > 0.5:
+                if score > 0.8:
                     # Convert box to numpy and get center x
                     np_box = box.detach().cpu().numpy()
                     box_center_x = (np_box[0] + np_box[2]) / 2
@@ -1109,133 +1109,21 @@ def update_vertebrae_display():
     ):
         x1, y1, x2, y2 = map(int, box[:4])
 
+        # Set colors
+        fill_color = (235, 206, 135)  # Light blue fill
+        border_color = (209, 134, 0)  # Blue border
+        
+        # Create semi-transparent overlay for the box fill
         overlay = img_with_boxes.copy()
         alpha = 0.2  
-
+        
         # Draw filled rectangle with transparency
-        cv.rectangle(
-            overlay, (x1, y1), (x2, y2), (80, 200, 255), -1
-        )  # Light blue fill
-        cv.addWeighted(
-            overlay, alpha, img_with_boxes, 1 - alpha, 0, img_with_boxes
-        )
-
-        # Horizontal lines (top and bottom)
-        dash_length = 10
-        gap_length = 5
-        color = (30, 144, 255)  
-        thickness = 2
-
-        # Draw dashed lines for top and bottom borders
-        for x in range(x1, x2, dash_length + gap_length):
-            x_end = min(x + dash_length, x2)
-            cv.line(
-                img_with_boxes,
-                (x, y1),
-                (x_end, y1),
-                color,
-                thickness,
-                cv.LINE_AA,
-            )
-            cv.line(
-                img_with_boxes,
-                (x, y2),
-                (x_end, y2),
-                color,
-                thickness,
-                cv.LINE_AA,
-            )
-
-        # Draw dashed lines for left and right borders
-        for y in range(y1, y2, dash_length + gap_length):
-            y_end = min(y + dash_length, y2)
-            cv.line(
-                img_with_boxes,
-                (x1, y),
-                (x1, y_end),
-                color,
-                thickness,
-                cv.LINE_AA,
-            )
-            cv.line(
-                img_with_boxes,
-                (x2, y),
-                (x2, y_end),
-                color,
-                thickness,
-                cv.LINE_AA,
-            )
-
-        # Add corner highlights for emphasis (solid corners)
-        corner_length = 15
-        # Top-left corner
-        cv.line(
-            img_with_boxes,
-            (x1, y1),
-            (x1 + corner_length, y1),
-            color,
-            thickness + 1,
-            cv.LINE_AA,
-        )
-        cv.line(
-            img_with_boxes,
-            (x1, y1),
-            (x1, y1 + corner_length),
-            color,
-            thickness + 1,
-            cv.LINE_AA,
-        )
-        # Top-right corner
-        cv.line(
-            img_with_boxes,
-            (x2, y1),
-            (x2 - corner_length, y1),
-            color,
-            thickness + 1,
-            cv.LINE_AA,
-        )
-        cv.line(
-            img_with_boxes,
-            (x2, y1),
-            (x2, y1 + corner_length),
-            color,
-            thickness + 1,
-            cv.LINE_AA,
-        )
-        # Bottom-left corner
-        cv.line(
-            img_with_boxes,
-            (x1, y2),
-            (x1 + corner_length, y2),
-            color,
-            thickness + 1,
-            cv.LINE_AA,
-        )
-        cv.line(
-            img_with_boxes,
-            (x1, y2),
-            (x1, y2 - corner_length),
-            color,
-            thickness + 1,
-            cv.LINE_AA,
-        )
-        # Bottom-right corner
-        cv.line(
-            img_with_boxes,
-            (x2, y2),
-            (x2 - corner_length, y2),
-            color,
-            thickness + 1,
-            cv.LINE_AA,
-        )
-        cv.line(
-            img_with_boxes,
-            (x2, y2),
-            (x2, y2 - corner_length),
-            color,
-            thickness + 1,
-            cv.LINE_AA,
-        )
+        cv.rectangle(overlay, (x1, y1), (x2, y2), fill_color, -1)
+        cv.addWeighted(overlay, alpha, img_with_boxes, 1 - alpha, 0, img_with_boxes)
+        
+        # Draw simple straight-line border with thin lines (1 pixel)
+        border_thickness = 1
+        cv.rectangle(img_with_boxes, (x1, y1), (x2, y2), border_color, border_thickness)
 
         # Prepare label text based on checkbox selections
         label_parts = []
@@ -1248,31 +1136,34 @@ def update_vertebrae_display():
         if label_parts:
             label = ": ".join(label_parts)
 
+            # Use smaller font and thickness for more minimal appearance
+            font_scale = 0.3  # Reduced from 0.8
+            font_thickness = 1  # Reduced from 2
+
             # Get text size for background rectangle
             (text_width, text_height), baseline = cv.getTextSize(
                 label, font, font_scale, font_thickness
             )
 
-            # Draw background rectangle for text
+            # Draw smaller background rectangle with less padding
             cv.rectangle(
                 img_with_boxes,
-                (x1, y1 - text_height - 10),
-                (x1 + text_width + 10, y1),
-                (0, 76, 153),
+                (x1, y1 - text_height - 4),  # Reduced padding from 10 to 4
+                (x1 + text_width + 4, y1),   # Reduced padding from 10 to 4
+                (235, 206, 135),  # Light beige color as requested
                 -1,
             )  # Filled rectangle
 
-            # Draw text with black color for better visibility
+            # Draw text with black color
             cv.putText(
                 img_with_boxes,
                 label,
-                (x1 + 5, y1 - 5),
+                (x1 + 2, y1 - 2),  # Reduced padding from 5 to 2
                 font,
                 font_scale,
                 (0, 0, 0),  # Black text
                 font_thickness,
             )
-
     # Update display
     img_display = Image.fromarray(img_with_boxes)
     display_width = (
