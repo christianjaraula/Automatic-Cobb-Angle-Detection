@@ -88,7 +88,7 @@ def open_image_path(path):
 # Filter output (convert predictions to usable format)
 def filter_output(output):
     scores = output["scores"].detach().cpu().numpy()
-    high_scores_idxs = np.where(scores > 0.5)[0].tolist()
+    high_scores_idxs = np.where(scores > 0.8)[0].tolist()
     post_nms_idxs = (
         torchvision.ops.nms(
             output["boxes"][high_scores_idxs],
@@ -1122,7 +1122,7 @@ def update_vertebrae_display():
         cv.addWeighted(overlay, alpha, img_with_boxes, 1 - alpha, 0, img_with_boxes)
         
         # Draw simple straight-line border with thin lines (1 pixel)
-        border_thickness = 1
+        border_thickness = 2
         cv.rectangle(img_with_boxes, (x1, y1), (x2, y2), border_color, border_thickness)
 
         # Prepare label text based on checkbox selections
@@ -1544,7 +1544,7 @@ def apply_cobb_angle():
             # Create a semi-transparent background with rounded appearance
             overlay = img.copy()
             cv.rectangle(
-                overlay, (box_x1, box_y1), (box_x2, box_y2), (0, 60, 120), -1
+                overlay, (box_x1, box_y1), (box_x2, box_y2), (235, 206, 135), -1
             )
             cv.addWeighted(overlay, 0.7, img, 0.3, 0, img)
 
@@ -1554,7 +1554,7 @@ def apply_cobb_angle():
                 img,
                 (box_x1, box_y1),
                 (box_x2, box_y2),
-                (0, 120, 215),
+                (209, 134, 0),
                 border_thickness,
                 cv.LINE_AA,
             )
@@ -1588,8 +1588,8 @@ def apply_cobb_angle():
             p2 = (int(mp_line[1][0]), int(mp_line[1][1]))
             
             # Medical blue color scheme
-            line_color = (0, 120, 215)  # Bright blue for the connecting line
-            dot_color = (0, 175, 255)   # Lighter blue for dots
+            line_color = (209, 134, 0)  # Bright blue for the connecting line
+            dot_color = (235, 206, 135)   # Lighter blue for dots
             dot_fill = (255, 255, 255)  # White fill for dots
             
             # Draw connecting line between the two midpoints
@@ -1641,7 +1641,7 @@ def apply_cobb_angle():
 
             # Draw the lines
             lines = []
-            colors = [(0, 120, 215)]  # Bright blue
+            colors = [(209, 134, 0)]  # Bright blue
 
             for idx, points in enumerate(
                 [
