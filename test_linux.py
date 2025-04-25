@@ -9,7 +9,6 @@ import cv2 as cv
 import matplotlib.pyplot as plt
 import math
 from PIL import Image, ImageDraw, ImageTk
-from ultralytics import YOLO
 from typing import List, Tuple, Dict, NamedTuple
 from customtkinter import CTkImage
 import time
@@ -21,7 +20,6 @@ img = None
 img_tensor = None
 keypoints = None
 outputs = None
-bbox_model = None
 vertebra_boxes = None
 vertebra_confidences = None
 show_labels = None
@@ -63,19 +61,17 @@ def get_kprcnn_model(path):
         return None
 
 
-def initialize_models():
-    global model, bbox_model, vertebra_boxes, vertebra_confidences
-    bbox_path = "/home/raspi/Desktop/models/model2.pt"
-    detector_path = "/home/raspi/Desktop/models/model1.pt"
-    model = get_kprcnn_model(detector_path)
-    bbox_model = YOLO(bbox_path)
-
 # def initialize_models():
 #     global model, bbox_model, vertebra_boxes, vertebra_confidences
-#     bbox_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\model2.pt"
-#     detector_path = "C:\\Users\\jarau\\OneDrive\\Desktop\\important\\testmodel.pt"
+#     bbox_path = "/home/raspi/Desktop/models/model2.pt"
+#     detector_path = "/home/raspi/Desktop/models/model1.pt"
 #     model = get_kprcnn_model(detector_path)
 #     bbox_model = YOLO(bbox_path)
+
+def initialize_models():
+    global model, vertebra_boxes, vertebra_confidences
+    detector_path = "/home/raspi/Desktop/models/testmodel2.pt"
+    model = get_kprcnn_model(detector_path)
 
 # Helper function to load and process an image
 def open_image_path(path):
@@ -685,9 +681,6 @@ def update_camera_feed():
         ret, frame = cap.read()
         
         if ret:
-            # Flip the frame horizontally to create mirror effect
-            # frame = cv.flip(frame, 1)
-            
             # Apply zoom if zoom_factor is greater than 1.0
             current_zoom = zoom_factor.get()
             if current_zoom > 1.0:
@@ -719,47 +712,16 @@ def update_camera_feed():
                 gray_frame = cv.cvtColor(frame, cv.COLOR_RGB2GRAY)
                 frame = cv.cvtColor(gray_frame, cv.COLOR_GRAY2RGB)
             
-            # Add frame overlay
-            height, width = frame.shape[:2]
-            frame_w = 400  # Fixed width for frame
-            frame_h = height
-            frame_x = (width - frame_w) // 2
-            frame_y = 0
-
-            frame_overlay = frame.copy()
+            img = frame
+            img_tensor = torch.from_numpy(frame.transpose(2, 0, 1)).float() / 255.0
             
-            # Create a very subtle medical-style frame overlay
-            overlay = frame_overlay.copy()
-            
-            # Add extremely subtle vertical guide lines
-            guide_line_color = (180, 200, 255)  # Very light medical blue
-            dash_length = 8
-            gap_length = 20
-            
-            # Draw minimal dashed vertical lines with very low opacity
-            for y in range(0, height, dash_length + gap_length):
-                # Left guide line
-                cv.line(overlay, (frame_x, y), (frame_x, min(y + dash_length, height)), guide_line_color, 1)
-                # Right guide line
-                cv.line(overlay, (frame_x + frame_w, y), (frame_x + frame_w, min(y + dash_length, height)), guide_line_color, 1)
-            
-            # Apply very subtle overlay
-            cv.addWeighted(overlay, 0.15, frame_overlay, 0.85, 0, frame_overlay)
-            
-            # Use frame overlay for further processing
-            img = frame_overlay
-            
-            img_tensor = torch.from_numpy(frame_overlay.transpose(2, 0, 1)).float() / 255.0
-            
-            frame_display = Image.fromarray(frame_overlay)
+            frame_display = Image.fromarray(frame)
             
             # Use full window dimensions for display
             display_width = main_frame.winfo_width() - side_panel.winfo_width()
             display_height = main_frame.winfo_height()
             
             resized_image = resize_image_for_display(frame_display, display_width, display_height)
-
-            
             ctk_image = CTkImage(light_image=resized_image, size=(display_width, display_height))
             image_label.configure(image=ctk_image)
             image_label.image = ctk_image
@@ -793,7 +755,6 @@ def update_camera_feed():
         # Always disable grayscale switch when camera is stopped
         grayscale_switch.configure(state="disabled")
 
-
 def capture_frame():
     global cap, camera_active, img, img_tensor
     
@@ -802,9 +763,6 @@ def capture_frame():
         current_zoom = zoom_factor.get()
         # Get current grayscale setting before capture
         current_grayscale = grayscale_enabled.get()
-
-        # cap.set(cv.CAP_PROP_FRAME_WIDTH, 1280) #2560 optional
-        # cap.set(cv.CAP_PROP_FRAME_HEIGHT, 960) # 1920 optional
         
         time.sleep(0.2)
         for _ in range(3):  
@@ -835,7 +793,6 @@ def capture_frame():
                 zoomed_frame = frame[top:bottom, left:right]
                 frame = cv.resize(zoomed_frame, (w, h), interpolation=cv.INTER_LINEAR)
             
-            # frame = cv.flip(frame, 1)
             # Convert BGR (OpenCV default) to RGB for proper colors
             frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
             
@@ -844,34 +801,7 @@ def capture_frame():
                 gray_frame = cv.cvtColor(frame, cv.COLOR_RGB2GRAY)
                 frame = cv.cvtColor(gray_frame, cv.COLOR_GRAY2RGB)
             
-            # Add frame overlay
-            height, width = frame.shape[:2]
-            frame_w = 400  # Fixed width for frame
-            frame_h = height
-            frame_x = (width - frame_w) // 2
-            frame_y = 0
-
-            frame_overlay = frame.copy()
-            
-            # Create a very subtle medical-style frame overlay
-            overlay = frame_overlay.copy()
-            
-            # Add extremely subtle vertical guide lines
-            guide_line_color = (180, 200, 255)  # Very light medical blue
-            dash_length = 8
-            gap_length = 20
-            
-            # Draw minimal dashed vertical lines with very low opacity
-            for y in range(0, height, dash_length + gap_length):
-                # Left guide line
-                cv.line(overlay, (frame_x, y), (frame_x, min(y + dash_length, height)), guide_line_color, 1)
-                # Right guide line
-                cv.line(overlay, (frame_x + frame_w, y), (frame_x + frame_w, min(y + dash_length, height)), guide_line_color, 1)
-            
-            # Apply very subtle overlay
-            cv.addWeighted(overlay, 0.15, frame_overlay, 0.85, 0, frame_overlay)
-            
-            img = frame_overlay.copy()
+            img = frame.copy()
             
             # Convert to PyTorch tensor
             img_tensor = torch.from_numpy(img.transpose(2, 0, 1)).float() / 255.0
@@ -978,7 +908,7 @@ def apply_grayscale():
 
 
 def detect_vertebrae():
-    global img, vertebra_boxes, tk_image, detection_method, vertebra_confidences, show_labels, show_confidence
+    global img, vertebra_boxes, tk_image, vertebra_confidences, show_labels, show_confidence
     if img is None:
         messagebox.showerror(
             "Error", "No image available. Please load an image first."
@@ -1006,9 +936,6 @@ def detect_vertebrae():
         status_label.pack()
         main_frame.update()  # Force update to show the label
 
-        # Get detection method
-        method = detection_var.get()
-
         # Calculate frame boundaries
         height, width = img.shape[:2]
         frame_w = 400  # Fixed width for frame (must match capture_frame())
@@ -1018,67 +945,67 @@ def detect_vertebrae():
         status_label.configure(text="Running detection model...")
         main_frame.update()
 
-        if method == "YOLO":
-            img_rgb = (
-                cv.cvtColor(img, cv.COLOR_BGR2RGB)
-                if len(img.shape) == 2
-                else img
-            )
-            results = bbox_model(img_rgb)
-            boxes = results[0].boxes
-            
-            # Filter boxes to only include those within the frame
-            frame_boxes = []
-            frame_confidences = []
-            for box, conf in zip(boxes.xyxy.cpu().numpy(), boxes.conf.cpu().numpy()):
-                # Check if box's center is within the frame
-                box_center_x = (box[0] + box[2]) / 2
-                if frame_x <= box_center_x <= frame_x + frame_w:
-                    frame_boxes.append(box)
-                    frame_confidences.append(conf)
-            
-            vertebra_boxes = np.array(frame_boxes)
-            vertebra_confidences = np.array(frame_confidences)
-        else:  # Model1
-            img_tensor = F.to_tensor(img)
-            with torch.no_grad():
-                output = model([img_tensor])[0]
-            
-            # Apply filter to get only high-scoring detections
-            scores = output["scores"].detach().cpu().numpy()
-            
-            # Additional filter for frame-only detections
-            high_scores_idxs = []
-            filtered_boxes = []
-            filtered_scores = []
-            
-            for idx, (box, score) in enumerate(zip(output["boxes"], output["scores"])):
-                if score > 0.8:
-                    # Convert box to numpy and get center x
-                    np_box = box.detach().cpu().numpy()
-                    box_center_x = (np_box[0] + np_box[2]) / 2
-                    
-                    # Check if box center is within the frame
-                    if frame_x <= box_center_x <= frame_x + frame_w:
-                        high_scores_idxs.append(idx)
-                        filtered_boxes.append(np_box)
-                        filtered_scores.append(score.detach().cpu().numpy())
-            
-            vertebra_boxes = np.array(filtered_boxes)
-            vertebra_confidences = np.array(filtered_scores)
+        # Use Model1 detection method
+        img_tensor = F.to_tensor(img)
+        with torch.no_grad():
+            output = model([img_tensor])[0]
         
-        # Update status with minimal UI updates
-        status_label.configure(text="Processing detection results...")
-        main_frame.update()
-
+        # Apply filter to get only high-scoring detections
+        scores = output["scores"].detach().cpu().numpy()
+        
+        # Additional filter for frame-only detections
+        high_scores_idxs = []
+        filtered_boxes = []
+        filtered_scores = []
+        
+        for idx, (box, score) in enumerate(zip(output["boxes"], output["scores"])):
+            if score > 0.8:
+                # Convert box to numpy and get center x
+                np_box = box.detach().cpu().numpy()
+                box_center_x = (np_box[0] + np_box[2]) / 2
+                
+                # Check if box center is within the frame
+                if frame_x <= box_center_x <= frame_x + frame_w:
+                    high_scores_idxs.append(idx)
+                    filtered_boxes.append(np_box)
+                    filtered_scores.append(score.detach().cpu().numpy())
+        
+        vertebra_boxes = np.array(filtered_boxes)
+        vertebra_confidences = np.array(filtered_scores)
+        
         # Clean up the status label before updating the display
         status_frame.destroy()
+        main_frame.update()
+        
+        # Handle case where no vertebrae are detected
+        if len(vertebra_boxes) == 0:
+            messagebox.showinfo(
+                "No Vertebrae Detected", 
+                "No vertebrae were detected in the image. Try adjusting the image or using a different one."
+            )
+            # Keep keypoints button disabled since there are no vertebrae to analyze
+            return
+        
+        # Update status with minimal UI updates
+        status_label = ctk.CTkLabel(
+            image_label,
+            text="Processing detection results...",
+            text_color="white",
+            bg_color="#1A1A1A",
+            corner_radius=8,
+            padx=20,
+            pady=10
+        )
+        status_label.place(relx=0.5, rely=0.5, anchor="center")
         main_frame.update()
         
         # Update the display with detected boxes
         update_vertebrae_display()
         
-        # Enable keypoints button
+        # Clean up status label
+        status_label.destroy()
+        
+        # Enable keypoints button since we have detected vertebrae
         keypoints_button.configure(
             state="normal", fg_color=("#000000")
         )
@@ -1088,6 +1015,10 @@ def detect_vertebrae():
         if 'status_frame' in locals() and status_frame.winfo_exists():
             status_frame.destroy()
             main_frame.update()
+        
+        if 'status_label' in locals() and status_label.winfo_exists():
+            status_label.destroy()
+            
         messagebox.showerror("Error", f"Failed to detect vertebrae: {str(e)}")
 
 def update_vertebrae_display():
@@ -1791,12 +1722,12 @@ main_frame.grid_rowconfigure(0, weight=1)
 main_frame.grid_columnconfigure(1, weight=1)  
 
 # Side panel - increased width to 300
-side_panel = ctk.CTkFrame(main_frame, width=280)
+side_panel = ctk.CTkFrame(main_frame, width=400)
 side_panel.grid(row=0, column=0, sticky="ns")
 side_panel.grid_propagate(False)  
 side_panel.pack_propagate(False)
 
-button_width = 260
+button_width = 380
 
 # Image label
 image_label = ctk.CTkLabel(main_frame, text="")
@@ -1811,7 +1742,7 @@ def on_closing():
         cap.release()
     root.destroy()
 
-box_size = min(button_width//1 - 1, 110)  
+box_size = min(button_width//1 - 1, 170)  
 
 # Create a frame for the top row (Main and Secondary)
 top_row_frame = ctk.CTkFrame(
@@ -1833,36 +1764,43 @@ main_curve_frame = ctk.CTkFrame(
 main_curve_frame.pack(side="left", padx=(0, 10))
 main_curve_frame.pack_propagate(False)  
 
-# Add the icon to the main curve frame
+# Create a container frame for icon and result to control vertical positioning
+content_frame = ctk.CTkFrame(
+    main_curve_frame,
+    fg_color="transparent"
+)
+content_frame.place(relx=0.5, rely=0.45, anchor="center")  # Moved up slightly from 0.5 to 0.45
+
+# Add the icon to the content frame, positioned higher
 main_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/angle-90.png"
 main_icon_image = Image.open(main_icon_path)
 main_icon_ctk = CTkImage(light_image=main_icon_image, dark_image=main_icon_image, size=(24, 24))
 main_icon_label = ctk.CTkLabel(
-    main_curve_frame,
+    content_frame,
     image=main_icon_ctk,
     text="",
 )
-main_icon_label.pack(pady=(20, 0))  
+main_icon_label.pack(pady=(0, 10))  # Increased bottom padding from 5 to 10
 
-# Add the result text below the icon
+# Add the result text below the icon (centered in the content frame)
 main_result_label = ctk.CTkLabel(
-    main_curve_frame,
+    content_frame,
     text="0.0°",
-    font=("Arial", 14, "bold"),
+    font=("Arial", 30, "bold"),
     text_color=("black", "white"),
 )
-main_result_label.pack(pady=(5, 0))
+main_result_label.pack(pady=(0, 0))
 
-# Add subtitle text
+# Add subtitle text at the bottom of the main frame
 main_subtitle_label = ctk.CTkLabel(
     main_curve_frame,
     text="Main",
     font=("Arial", 10),
     text_color=("gray50", "gray70"),
 )
-main_subtitle_label.pack(pady=(0, 2))
+main_subtitle_label.place(relx=0.5, rely=0.9, anchor="center")
 
-# Secondary curve frame (top right) - replacing the text box with a frame
+# Secondary curve frame (top right)
 secondary_curve_frame = ctk.CTkFrame(
     top_row_frame,
     width=box_size,
@@ -1875,33 +1813,41 @@ secondary_curve_frame = ctk.CTkFrame(
 secondary_curve_frame.pack(side="right", padx=(10, 0))
 secondary_curve_frame.pack_propagate(False)  
 
-# Add the icon to the secondary curve frame
+# Create content frame for secondary curve - moved up
+secondary_content_frame = ctk.CTkFrame(
+    secondary_curve_frame,
+    fg_color="transparent"
+)
+secondary_content_frame.place(relx=0.5, rely=0.45, anchor="center")  # Changed from 0.5 to 0.45
+
+# Add the icon to the secondary content frame
 secondary_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/angle.png"
 secondary_icon_image = Image.open(secondary_icon_path)
 secondary_icon_ctk = CTkImage(light_image=secondary_icon_image, dark_image=secondary_icon_image, size=(24, 24))
 secondary_icon_label = ctk.CTkLabel(
-    secondary_curve_frame,
+    secondary_content_frame,
     image=secondary_icon_ctk,
     text="",
 )
-secondary_icon_label.pack(pady=(20, 0))  
+secondary_icon_label.pack(pady=(0, 10))  # Increased from 5 to 10
 
 # Add the result text below the icon
 secondary_result_label = ctk.CTkLabel(
-    secondary_curve_frame,
+    secondary_content_frame,
     text="0.0°",
-    font=("Arial", 14, "bold"),
+    font=("Arial", 30, "bold"),
     text_color=("black", "white"),
 )
-secondary_result_label.pack(pady=(5, 0))
+secondary_result_label.pack(pady=(0, 0))
 
+# Add subtitle at bottom of frame
 secondary_subtitle_label = ctk.CTkLabel(
     secondary_curve_frame,
     text="Secondary",
     font=("Arial", 10),
     text_color=("gray50", "gray70"),
 )
-secondary_subtitle_label.pack(pady=(0, 3))
+secondary_subtitle_label.place(relx=0.5, rely=0.9, anchor="center")
 
 # Create a frame for the bottom row (Curve Type and Severity)
 bottom_row_frame = ctk.CTkFrame(
@@ -1923,33 +1869,41 @@ curve_type_frame = ctk.CTkFrame(
 curve_type_frame.pack(side="left", padx=(0, 10))
 curve_type_frame.pack_propagate(False)  
 
-# Add the icon to the curve type frame
+# Create content frame for curve type - moved up
+curve_type_content_frame = ctk.CTkFrame(
+    curve_type_frame,
+    fg_color="transparent"
+)
+curve_type_content_frame.place(relx=0.5, rely=0.45, anchor="center")  # Changed from 0.5 to 0.45
+
+# Add the icon to the curve type content frame
 curve_type_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/scoliosis.png"
 curve_type_icon_image = Image.open(curve_type_icon_path)
 curve_type_icon_ctk = CTkImage(light_image=curve_type_icon_image, dark_image=curve_type_icon_image, size=(24, 24))
 curve_type_icon_label = ctk.CTkLabel(
-    curve_type_frame,
+    curve_type_content_frame,
     image=curve_type_icon_ctk,
     text="",
 )
-curve_type_icon_label.pack(pady=(20, 0))  
+curve_type_icon_label.pack(pady=(0, 10))  # Increased from 5 to 10
 
 # Add the result text below the icon
 curve_type_result_label = ctk.CTkLabel(
-    curve_type_frame,
+    curve_type_content_frame,
     text="-",
-    font=("Arial", 14, "bold"),
+    font=("Arial", 30, "bold"),
     text_color=("black", "white"),
 )
-curve_type_result_label.pack(pady=(1, 0))
+curve_type_result_label.pack(pady=(0, 0))
 
+# Add subtitle at bottom of frame
 curve_subtitle_label = ctk.CTkLabel(
     curve_type_frame,
     text="Curve Type",
     font=("Arial", 10),
     text_color=("gray50", "gray70"),
 )
-curve_subtitle_label.pack(pady=(0, 3))
+curve_subtitle_label.place(relx=0.5, rely=0.9, anchor="center")
 
 # Severity frame (bottom right) 
 severity_frame = ctk.CTkFrame(
@@ -1964,33 +1918,41 @@ severity_frame = ctk.CTkFrame(
 severity_frame.pack(side="right", padx=(10, 0))
 severity_frame.pack_propagate(False)  
 
-# Add the icon to the severity frame
+# Create content frame for severity - moved up
+severity_content_frame = ctk.CTkFrame(
+    severity_frame,
+    fg_color="transparent"
+)
+severity_content_frame.place(relx=0.5, rely=0.45, anchor="center")  # Changed from 0.5 to 0.45
+
+# Add the icon to the severity content frame
 severity_icon_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/rating.png"
 severity_icon_image = Image.open(severity_icon_path)
 severity_icon_ctk = CTkImage(light_image=severity_icon_image, dark_image=severity_icon_image, size=(24, 24))
 severity_icon_label = ctk.CTkLabel(
-    severity_frame,
+    severity_content_frame,
     image=severity_icon_ctk,
     text="",
 )
-severity_icon_label.pack(pady=(20, 0))  
+severity_icon_label.pack(pady=(0, 10))  # Increased from 5 to 10
 
 # Add the result text below the icon
 severity_result_label = ctk.CTkLabel(
-    severity_frame,
+    severity_content_frame,
     text="-",
-    font=("Arial", 14, "bold"),
+    font=("Arial", 30, "bold"),
     text_color=("black", "white"),
 )
-severity_result_label.pack(pady=(1, 0))
+severity_result_label.pack(pady=(0, 0))
 
+# Add subtitle at bottom of frame
 severity_subtitle_label = ctk.CTkLabel(
     severity_frame,
     text="Severity",
     font=("Arial", 10),
     text_color=("gray50", "gray70"),
 )
-severity_subtitle_label.pack(pady=(0, 3))
+severity_subtitle_label.place(relx=0.5, rely=0.9, anchor="center")
 
 #Process buttons
 measure_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/ruler.png"
@@ -2003,7 +1965,7 @@ cobb_angle_button = ctk.CTkButton(
     compound="left",
     command=apply_cobb_angle,
     corner_radius=10,
-    width=260,
+    width=button_width,
     state="disabled", 
     fg_color=("gray75", "gray45"),  
     height=60
@@ -2059,7 +2021,7 @@ camera_button = ctk.CTkButton(
     compound="left",
     command=toggle_camera,
     corner_radius=10,
-    width=115,  
+    width=175,  
     height=60,
     anchor="center"
 )
@@ -2076,41 +2038,12 @@ open_button = ctk.CTkButton(
     compound="left",
     command=open_file,
     corner_radius=10,
-    width=150,  
+    width=175,  
     height=60,
     anchor="center"
 )
 open_button.pack(side="left")
 open_button.image = image_icon_ctk
-
-# Create radio buttons for detection method
-detection_var = tk.StringVar(value="Model1") 
-detection_label = ctk.CTkLabel(
-    side_panel, text="Detection Method:", anchor="w",
-    text_color=("gray50", "gray70"), font=("Arial", 12)
-)
-detection_label.pack(side="top", pady=(10, 10), padx=20)
-
-# Create a frame to hold the radio buttons vertically
-radio_frame = ctk.CTkFrame(side_panel, fg_color="transparent")
-radio_frame.pack(side="top", pady=10, padx=20, fill="x")
-
-# Add the radio buttons to the frame vertically
-model1_radio = ctk.CTkRadioButton(
-    radio_frame,
-    text="Model 1",
-    variable=detection_var,
-    value="Model1",
-)
-model1_radio.pack(side="top", pady=(0, 20), anchor="w")  # Changed to "top" for vertical stacking
-
-model2_radio = ctk.CTkRadioButton(
-    radio_frame,
-    text="Model 2",
-    variable=detection_var,
-    value="YOLO",
-)
-model2_radio.pack(side="top", anchor="w")  # Changed to "top" for vertical stacking
 
 display_options_label = ctk.CTkLabel(
     side_panel, text="Display Options:", anchor="w",
