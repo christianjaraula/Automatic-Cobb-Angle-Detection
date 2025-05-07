@@ -962,6 +962,11 @@ def detect_vertebrae():
             if score > 0.8:
                 # Convert box to numpy and get center x
                 np_box = box.detach().cpu().numpy()
+                
+                # Validate box dimensions and format
+                if not is_valid_box(np_box):
+                    continue
+                    
                 box_center_x = (np_box[0] + np_box[2]) / 2
                 
                 # Check if box center is within the frame
@@ -986,6 +991,14 @@ def detect_vertebrae():
             # Keep keypoints button disabled since there are no vertebrae to analyze
             return
         
+        # Handle case where fewer than 12 vertebrae are detected
+        if len(vertebra_boxes) < 12:
+            messagebox.showerror(
+                "Insufficient Vertebrae Detected", 
+                f"Invalid vertebrae detected. At least 12 vertebrae are required for accurate analysis. Please retry capture."
+            )
+            return
+        
         # Update status with minimal UI updates
         status_label = ctk.CTkLabel(
             image_label,
@@ -1005,6 +1018,20 @@ def detect_vertebrae():
         # Clean up status label
         status_label.destroy()
         
+        # Show information about vertebrae count directly on the image
+        info_text = f"Detected {len(vertebra_boxes)} vertebrae"
+        info_label = ctk.CTkLabel(
+            image_label,
+            text=info_text,
+            fg_color="#1A1A1A",
+            text_color="white",
+            padx=10,
+            pady=5
+        )
+        info_label.place(relx=0.5, rely=0.05, anchor="n")
+        # Auto-hide the info label after 5 seconds
+        main_frame.after(5000, info_label.destroy)
+        
         # Enable keypoints button since we have detected vertebrae
         keypoints_button.configure(
             state="normal", fg_color=("#000000")
@@ -1020,6 +1047,48 @@ def detect_vertebrae():
             status_label.destroy()
             
         messagebox.showerror("Error", f"Failed to detect vertebrae: {str(e)}")
+
+def is_valid_box(box):
+    """
+    Validate that a bounding box is properly formatted and has valid dimensions.
+    Expected format: [x_min, y_min, x_max, y_max]
+    
+    Args:
+        box: numpy array of shape (4,) with box coordinates
+        
+    Returns:
+        bool: True if box is valid, False otherwise
+    """
+    try:
+        # Check if box has 4 coordinates
+        if box.shape != (4,):
+            return False
+            
+        # Unpack box coordinates
+        x_min, y_min, x_max, y_max = box
+        
+        # Check if box has valid dimensions (x_max > x_min, y_max > y_min)
+        if x_max <= x_min or y_max <= y_min:
+            return False
+            
+        # Check if box dimensions are within reasonable range
+        width = x_max - x_min
+        height = y_max - y_min
+        
+        # Box should have a minimum size (adjust these values as needed for your application)
+        if width < 5 or height < 5:
+            return False
+            
+        # Box shouldn't be excessively large (e.g., larger than the image)
+        # Since we don't know image dimensions here, we'll use a large threshold
+        if width > 2000 or height > 2000:
+            return False
+            
+        return True
+        
+    except Exception:
+        # If any error occurs during validation, consider the box invalid
+        return False
 
 def update_vertebrae_display():
     global img, vertebra_boxes, vertebra_confidences, show_labels, show_confidence
@@ -1308,7 +1377,6 @@ def show_keypoints():
                 image_label,
                 text=info_text,
                 fg_color="#1A1A1A",
-                corner_radius=8,
                 text_color="white",
                 padx=10,
                 pady=5
@@ -1697,6 +1765,7 @@ def add_save_button():
 
         save_cobb_button.icon = save_icon
 
+
 # Initialize models
 initialize_models()
 
@@ -1786,7 +1855,7 @@ main_icon_label.pack(pady=(0, 10))  # Increased bottom padding from 5 to 10
 main_result_label = ctk.CTkLabel(
     content_frame,
     text="0.0°",
-    font=("Arial", 30, "bold"),
+    font=("Arial", 24, "bold"),
     text_color=("black", "white"),
 )
 main_result_label.pack(pady=(0, 0))
@@ -1835,7 +1904,7 @@ secondary_icon_label.pack(pady=(0, 10))  # Increased from 5 to 10
 secondary_result_label = ctk.CTkLabel(
     secondary_content_frame,
     text="0.0°",
-    font=("Arial", 30, "bold"),
+    font=("Arial", 24, "bold"),
     text_color=("black", "white"),
 )
 secondary_result_label.pack(pady=(0, 0))
@@ -1891,7 +1960,7 @@ curve_type_icon_label.pack(pady=(0, 10))  # Increased from 5 to 10
 curve_type_result_label = ctk.CTkLabel(
     curve_type_content_frame,
     text="-",
-    font=("Arial", 30, "bold"),
+    font=("Arial", 24, "bold"),
     text_color=("black", "white"),
 )
 curve_type_result_label.pack(pady=(0, 0))
@@ -1940,7 +2009,7 @@ severity_icon_label.pack(pady=(0, 10))  # Increased from 5 to 10
 severity_result_label = ctk.CTkLabel(
     severity_content_frame,
     text="-",
-    font=("Arial", 30, "bold"),
+    font=("Arial", 24, "bold"),
     text_color=("black", "white"),
 )
 severity_result_label.pack(pady=(0, 0))
@@ -1953,6 +2022,157 @@ severity_subtitle_label = ctk.CTkLabel(
     text_color=("gray50", "gray70"),
 )
 severity_subtitle_label.place(relx=0.5, rely=0.9, anchor="center")
+
+# First, let's create a function to show information popups
+def show_info(title, info_text, button_widget):
+    """Display information in a popup window positioned next to the clicked button"""
+    # Close any existing info windows first
+    try:
+        if hasattr(root, 'active_info_window') and root.active_info_window.winfo_exists():
+            root.active_info_window.destroy()
+    except:
+        pass
+    
+    # Create new window
+    info_window = ctk.CTkToplevel(root)
+    root.active_info_window = info_window  # Store reference to close later if needed
+    
+    info_window.title(title)
+    info_window.geometry("350x150")  # Slightly shorter without the bottom close button
+    info_window.resizable(False, False)
+    info_window.attributes('-topmost', True)  # Keep on top
+    
+    # Remove window decorations for a cleaner look
+    info_window.overrideredirect(True)
+    
+    # Create a frame with a border
+    frame = ctk.CTkFrame(info_window, border_width=1, border_color=("#BBBBBB", "#555555"))
+    frame.pack(fill="both", expand=True)
+    
+    # Add a title bar with the title and a close button
+    title_frame = ctk.CTkFrame(frame, height=30, fg_color=("#DDDDDD", "#333333"))
+    title_frame.pack(fill="x", padx=0, pady=0)
+    
+    # Add the title
+    title_label = ctk.CTkLabel(
+        title_frame,
+        text=f" {title}",
+        font=("Arial", 12, "bold"),
+        anchor="w"
+    )
+    title_label.pack(side="left", padx=10, fill="both")
+    
+    # Add a close button to the title bar
+    close_x = ctk.CTkButton(
+        title_frame,
+        text="✕",
+        width=30,
+        height=30,
+        corner_radius=0,
+        font=("Arial", 12),
+        fg_color="transparent",
+        hover_color=("#BBBBBB", "#555555"),
+        command=info_window.destroy
+    )
+    close_x.pack(side="right", padx=0)
+    
+    # Add information text
+    info_label = ctk.CTkLabel(
+        frame,
+        text=info_text,
+        font=("Arial", 12),
+        wraplength=330,  # Wider wrap to avoid unnecessary text breaks
+        justify="center",  # Center-aligned text
+        anchor="center"    # Center anchor
+    )
+    info_label.pack(pady=(15, 15), padx=20, fill="both", expand=True)
+    
+    # Position the window next to the button that was clicked
+    info_window.update_idletasks()
+    
+    # Get button's absolute position
+    button_x = button_widget.winfo_rootx()
+    button_y = button_widget.winfo_rooty()
+    
+    # Get the screen dimensions
+    screen_width = info_window.winfo_screenwidth()
+    screen_height = info_window.winfo_screenheight()
+    
+    # Calculate position (to the right of the button)
+    x = button_x + button_widget.winfo_width() + 10
+    y = button_y
+    
+    # Ensure the window fits on screen
+    if x + info_window.winfo_width() > screen_width:
+        # If it would go off the right edge, position to the left of the button instead
+        x = button_x - info_window.winfo_width() - 10
+    
+    if y + info_window.winfo_height() > screen_height:
+        # If it would go off the bottom, adjust upward
+        y = screen_height - info_window.winfo_height() - 40
+    
+    info_window.geometry(f"+{x}+{y}")
+    
+    # Add ability to drag the window by the title bar
+    def start_drag(event):
+        info_window._drag_x = event.x
+        info_window._drag_y = event.y
+    
+    def drag(event):
+        x = info_window.winfo_x() - info_window._drag_x + event.x
+        y = info_window.winfo_y() - info_window._drag_y + event.y
+        info_window.geometry(f"+{x}+{y}")
+    
+    title_frame.bind("<Button-1>", start_drag)
+    title_frame.bind("<B1-Motion>", drag)
+
+# Information texts for each box - clean formatting with line breaks
+main_info = """The Main Curve angle represents the primary 
+Cobb angle measurement, which is the angle 
+between the most tilted vertebrae above 
+and below the apex of the curve."""
+
+secondary_info = """The Secondary Curve angle represents any 
+compensatory or structural curve that exists 
+in addition to the main curve. This is the 
+second largest curve in the spine."""
+
+curve_type_info = """Curve Type refers to the spine’s curve pattern:
+•  C-Type – Single curve forming a C-shape, 
+usually in one region
+•  S-Type – Two curves forming an S-shape, 
+often in thoracic and lumbar regions"""
+
+severity_info = """Severity classification is based on 
+the Cobb angle measurement:
+• Mild: 10-25°
+• Moderate: 25-40°
+• Severe: >40°
+"""
+
+# Function to create an info button
+def create_info_button(parent_frame, info_title, info_text):
+    """Create a small info button in the given frame"""
+    info_button = ctk.CTkButton(
+        parent_frame,
+        text="i",
+        width=20,
+        height=20,
+        corner_radius=10,
+        font=("Arial", 10, "bold"),
+        fg_color=("#BBBBBB", "#555555"),  # Reverting to original light/dark mode colors
+        hover_color=("#999999", "#777777"),  # Original light/dark mode hover colors
+        text_color=("white", "white"),
+        command=lambda btn=parent_frame: show_info(info_title, info_text, btn)
+    )
+    info_button.place(x=8, y=8)  # Position in top-left with small margin
+    return info_button
+
+# Create info buttons for each frame
+main_info_button = create_info_button(main_curve_frame, "Main Curve", main_info)
+secondary_info_button = create_info_button(secondary_curve_frame, "Secondary Curve", secondary_info)
+curve_type_info_button = create_info_button(curve_type_frame, "Curve Type", curve_type_info)
+severity_info_button = create_info_button(severity_frame, "Severity", severity_info)
 
 #Process buttons
 measure_path = "/home/raspi/Desktop/test/Automatic-Cobb-Angle-Detection/ruler.png"
